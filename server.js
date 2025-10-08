@@ -9,19 +9,16 @@ import { v2 as cloudinary } from 'cloudinary';
 import Razorpay from 'razorpay'; 
 import crypto from 'crypto'; 
 
-// --- Load dotenv immediately & define file paths ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename); 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-// --- Configure Cloudinary ---
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
     api_key: process.env.CLOUDINARY_API_KEY, 
     api_secret: process.env.CLOUDINARY_API_SECRET 
 });
 
-// --- Configure Razorpay --- 
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -36,10 +33,9 @@ import contactRoutes from './routes/contact.route.js';
 import Alumni from './models/Alumni.js';
 import RegistrationPayment from './models/RegistrationPayment.js'; 
 
-// --- VERIFY JWT SECRET IS LOADED ---
 if (!process.env.JWT_SECRET) {
     console.error('FATAL ERROR: JWT_SECRET is not defined in .env file');
-    process.exit(1); // Exit the process with an error code
+    process.exit(1);
 }
 console.log('JWT Secret is loaded.'); 
 
@@ -48,30 +44,33 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const NETLIFY_FRONTEND_URL = 'https://igitmcaalumni.netlify.app'; // <--- UPDATE THIS
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", 
-        methods: ["GET", "POST", "PUT", "DELETE"]
+        origin: NETLIFY_FRONTEND_URL, 
+        methods: ["GET", "POST", "PUT", "DELETE"],
+        credentials: true
     }
 });
 
-app.use(cors());
+app.use(cors({
+    origin: NETLIFY_FRONTEND_URL,
+    credentials: true
+}));
 app.use(express.json());
 
-// Middleware to make 'io' accessible in routes
 app.use((req, res, next) => {
     req.io = io;
     next();
 });
 
-// --- API ROUTES ---
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
 
-// Route to get ONLY VERIFIED alumni for the directory
 app.get('/api/alumni', async (req, res) => {
     try {
         const alumni = await Alumni.find({ isVerified: true }).sort({ createdAt: -1 });
@@ -81,7 +80,6 @@ app.get('/api/alumni', async (req, res) => {
     }
 });
 
-// Route for initial follower count
 app.get('/api/total-users', async (req, res) => {
     try {
         const userCount = await Alumni.countDocuments({ isVerified: true });
@@ -91,7 +89,6 @@ app.get('/api/total-users', async (req, res) => {
     }
 });
 
-// --- NEW ENDPOINT for FREE Event Registration ---
 app.post('/api/register-free-event', async (req, res) => {
     try {
         const registrationData = req.body;
@@ -116,18 +113,15 @@ app.post('/api/register-free-event', async (req, res) => {
     }
 });
 
-
-// --- START: NEW DONATION ENDPOINT ---
 app.post('/api/donate/create-order', async (req, res) => {
     const { amount } = req.body;
 
-    // Validate the amount
     if (!amount || Number(amount) <= 0) {
         return res.status(400).json({ message: 'Please provide a valid amount.' });
     }
 
     const options = {
-        amount: Math.round(amount * 100), // Amount in paise
+        amount: Math.round(amount * 100),
         currency: 'INR',
         receipt: `receipt_donation_${new Date().getTime()}`,
     };
@@ -137,17 +131,13 @@ app.post('/api/donate/create-order', async (req, res) => {
         if (!order) {
             return res.status(500).send('Error creating Razorpay order.');
         }
-        // NOTE: We don't save a donation model here, just create the order
         res.status(201).json(order);
     } catch (error) {
         console.error('Error creating Razorpay donation order:', error);
         res.status(500).send('Server Error');
     }
 });
-// --- END: NEW DONATION ENDPOINT ---
 
-
-// --- RAZORPAY PAYMENT ROUTES (For Event Registration) --- 
 app.post('/api/create-order', async (req, res) => {
     try {
         const { amount, ...registrationData } = req.body;
@@ -207,24 +197,10 @@ app.post('/api/verify-payment', async (req, res) => {
     }
 });
 
+app.get('/', (req, res) => {
+    res.send('Alumni Network API is running and accessible.');
+});
 
-// --- SERVE FRONTEND IN PRODUCTION ---
-if (process.env.NODE_ENV === 'production') {
-    // Correctly resolve the path to the client's build directory
-    const clientBuildPath = path.join(__dirname, '../client/build');
-    
-    // Set the static folder for the built React app
-    app.use(express.static(clientBuildPath));
-  
-    // --- ✅ FINAL FIX: Use a regular expression for the catch-all route ---
-    // This serves the React app for any path that is not an API route
-    app.get(/^(?!\/api).*/, (req, res) => {
-      res.sendFile(path.resolve(clientBuildPath, 'index.html'));
-    });
-}
-
-
-// Socket.io connection logic
 io.on('connection', (socket) => {
     console.log('✅ A user connected via WebSocket');
     socket.on('disconnect', () => {
@@ -235,4 +211,3 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`)
 });
-
