@@ -8,10 +8,27 @@ import { Server } from 'socket.io';
 import { v2 as cloudinary } from 'cloudinary'; 
 import Razorpay from 'razorpay'; 
 import crypto from 'crypto'; 
+import mongoose from 'mongoose'; // <-- Explicitly import Mongoose
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename); 
+
+// --- CRITICAL FIX: HARDCODE MONGO_URI for guaranteed database connection ---
+// Since the environment variables are unreliable on startup, we force the URI here.
+// NOTE: If you change your DB password, you MUST update this line manually.
+const MONGO_URI_FIXED = 'mongodb+srv://milan-dev:Milan123@cluster0.0stui7v.mongodb.net/alumniDB?retryWrites=true&w=majority&appName=Cluster0';
+// --------------------------------------------------------------------------
+
 dotenv.config({ path: path.join(__dirname, '.env') });
+
+// Connect to MongoDB using the guaranteed URI
+mongoose.connect(MONGO_URI_FIXED)
+    .then(() => console.log('✅ MongoDB Connected...'))
+    .catch((err) => {
+        // If this fails, the server will crash immediately, but at least we know why.
+        console.error('❌ FATAL DB ERROR: Check MONGO_URI or Database Access.', err);
+        // Do not throw here, allow the app to initialize, but log the error prominently
+    });
 
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
@@ -24,27 +41,15 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-import connectDB from './config/db.js';
-import authRoutes from './routes/authRoutes.js';
-import profileRoutes from './routes/profileRoutes.js';
-import galleryRoutes from './routes/galleryRoutes.js';
-import contactRoutes from './routes/contact.route.js';
 
-import Alumni from './models/Alumni.js';
-import RegistrationPayment from './models/RegistrationPayment.js'; 
-
-if (!process.env.JWT_SECRET) {
-    console.error('FATAL ERROR: JWT_SECRET is not defined in .env file');
-    process.exit(1);
-}
-console.log('JWT Secret is loaded.'); 
-
-connectDB();
+// NOTE: connectDB() is no longer needed since we connect directly above.
+// Remove the old connectDB() call if it was present.
+// connectDB(); // Removed if it was here
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const NETLIFY_FRONTEND_URL = 'https://igitmcaalumni.netlify.app'; // <--- UPDATE THIS
+const NETLIFY_FRONTEND_URL = 'https://igitmcaalumni.netlify.app'; 
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -66,10 +71,29 @@ app.use((req, res, next) => {
     next();
 });
 
+// Assuming Alumni and RegistrationPayment models are defined elsewhere
+import Alumni from './models/Alumni.js';
+import RegistrationPayment from './models/RegistrationPayment.js'; 
+
+// Check if JWT Secret is present AFTER dotenv loads
+if (!process.env.JWT_SECRET) {
+    console.error('FATAL ERROR: JWT_SECRET is not defined.');
+    process.exit(1);
+}
+console.log('JWT Secret is loaded.'); 
+
+
+// --- ROUTING ---
+import authRoutes from './routes/authRoutes.js';
+import profileRoutes from './routes/profileRoutes.js';
+import galleryRoutes from './routes/galleryRoutes.js';
+import contactRoutes from './routes/contact.route.js';
+
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
+// ---------------
 
 app.get('/api/alumni', async (req, res) => {
     try {
