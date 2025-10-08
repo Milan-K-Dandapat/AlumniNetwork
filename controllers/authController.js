@@ -15,24 +15,19 @@ const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d
 // The 'secure' flag automatically determines the port (465 for true, 587 for false)
 // =========================================================================
 const createTransporter = () => {
-    // We explicitly set the port and security based on the environment best practice
-    // but we can also rely on Nodemailer's defaults for common services like Gmail
     return nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        // Using port 465 with secure: true is correct, but if this fails on Render, 
-        // the server may be configured to prefer STARTTLS on port 587.
-        port: 465, 
-        secure: true, 
+        // --- ✅ FIX: Swapping to Port 587 with STARTTLS ---
+        port: 587, 
+        secure: false, // Must be false for port 587
+        // requireTLS: true, // Optional but good practice for 587
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS,
         },
-        // IMPORTANT: Added a timeout just in case the connection hangs indefinitely
-        // Although the 500 error suggests authentication failure, not timeout.
-        timeout: 20000 // 20 seconds
+        timeout: 20000 // Keep the generous timeout
     });
 };
-// =========================================================================
 
 // --- REGISTRATION ---
 export const sendOtp = async (req, res) => {
