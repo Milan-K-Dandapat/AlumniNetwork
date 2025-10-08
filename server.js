@@ -22,9 +22,7 @@ const MONGO_URI = process.env.MONGO_URI;
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected...'))
     .catch((err) => {
-        // Log the error prominently and rely on Render environment to be set
         console.error('❌ FATAL DB ERROR: Check MONGO_URI in .env and Render Secrets.', err);
-        // Do not throw here, allow the app to initialize, but log the error prominently
     });
 // -------------------------------------------------------------------------
 
@@ -43,31 +41,18 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // =========================================================================
-//                  CORS FIX: Define Allowed Origins
+//                  ✅ CORS FIX SECTION
 // =========================================================================
 
-// Define all origins that are allowed to access this API
 const ALLOWED_ORIGINS = [
     'https://igitmcaalumni.netlify.app',
-    'http://localhost:3000', 
+    'http://localhost:3000',
 ];
 
-const server = http.createServer(app);
-
-// 1. Socket.io CORS Configuration
-const io = new Server(server, {
-    cors: {
-        origin: ALLOWED_ORIGINS, 
-        methods: ["GET", "POST", "PUT", "DELETE"],
-        credentials: true
-    }
-});
-
-// 2. Express Middleware CORS Configuration
+// ✅ Apply CORS middleware early
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        
         if (ALLOWED_ORIGINS.includes(origin)) {
             callback(null, true);
         } else {
@@ -75,28 +60,39 @@ app.use(cors({
             callback(new Error('Not allowed by CORS'), false);
         }
     },
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
 }));
-// =========================================================================
 
 app.use(express.json());
 
+const server = http.createServer(app);
+
+// ✅ Socket.io with same CORS rules
+const io = new Server(server, {
+    cors: {
+        origin: ALLOWED_ORIGINS,
+        methods: ["GET", "POST", "PUT", "DELETE"],
+        credentials: true
+    }
+});
+
+// Attach io to req for real-time usage
 app.use((req, res, next) => {
     req.io = io;
     next();
 });
 
-// Assuming Alumni and RegistrationPayment models are defined elsewhere
+// =========================================================================
+
 import Alumni from './models/Alumni.js';
 import RegistrationPayment from './models/RegistrationPayment.js'; 
 
-// Check if JWT Secret is present AFTER dotenv loads
 if (!process.env.JWT_SECRET) {
     console.error('FATAL ERROR: JWT_SECRET is not defined.');
     process.exit(1);
 }
 console.log('JWT Secret is loaded.'); 
-
 
 // --- ROUTING ---
 import authRoutes from './routes/authRoutes.js';
