@@ -5,11 +5,13 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const OTP_EXPIRY_MINUTES = 10;
+// CRITICAL FIX: Ensures the fallback secret is used if the environment variable fails
 const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1'; 
 
 
 // =========================================================================
 // ✅ FINAL FIX: SENDGRID CONFIGURATION
+// This configuration uses the SENDGRID_API_KEY for robust email sending.
 // =========================================================================
 const createTransporter = () => {
     return nodemailer.createTransport({
@@ -18,7 +20,7 @@ const createTransporter = () => {
         secure: false,               // Use STARTTLS
         auth: {
             user: 'apikey',          // SendGrid SMTP username is always 'apikey'
-            pass: process.env.SENDGRID_API_KEY, // Use the new API Key variable
+            pass: process.env.SENDGRID_API_KEY, // The API Key (set in Render)
         },
     });
 };
@@ -34,13 +36,11 @@ export const sendOtp = async (req, res) => {
 
     try {
         let alumni = await Alumni.findOne({ email });
-        // NOTE: We do not check for isVerified here. The purpose is to allow 
-        // overwriting an existing UNVERIFIED record.
         
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000); 
         
-        // Prepare data payload, handling optional fields sent by the frontend
+        // Prepare data payload, handling optional fields correctly
         const alumniData = { fullName, email, phoneNumber, batch, otp, otpExpires };
         
         if (company) alumniData.company = company;
@@ -53,10 +53,10 @@ export const sendOtp = async (req, res) => {
             await Alumni.create(alumniData);
         }
         
-        // Database save successful! Now attempt to send email.
+        // Database save successful! Now attempt to send email (the point of failure).
         
         const mailOptions = {
-            from: process.env.EMAIL_USER, // Verified sender email
+            from: process.env.EMAIL_USER, // Must be the verified SendGrid sender email
             to: email,
             subject: 'Your AlumniConnect Verification Code',
             html: `<p>Your OTP is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
@@ -68,8 +68,8 @@ export const sendOtp = async (req, res) => {
         res.status(200).json({ message: 'OTP sent successfully to your email.' });
 
     } catch (error) {
-        // If the email fails, we log it and return the specific server error.
-        console.error('Error sending email (SendGrid Auth Failure likely):', error); 
+        // This specific log ensures we catch any remaining SendGrid authentication failure
+        console.error('Error sending email (SendGrid Authentication Failed):', error); 
         res.status(500).json({ message: 'Server error. Could not send OTP.' });
     }
 };
@@ -111,31 +111,17 @@ export const verifyOtpAndRegister = async (req, res) => {
     }
 };
 
-// --- LOGIN & PASSWORD ---
+// --- LOGIN & PASSWORD (Remaining functions) ---
 export const login = async (req, res) => {
     const { email, password } = req.body;
     try {
         const alumni = await Alumni.findOne({ email }).select('+password');
-
-        if (!alumni || !alumni.password) {
-            return res.status(400).json({ message: 'Invalid credentials.' });
-        }
-        if (!alumni.isVerified) {
-            return res.status(400).json({ message: 'Account not verified.' });
-        }
-        
+        if (!alumni || !alumni.password) { return res.status(400).json({ message: 'Invalid credentials.' }); }
+        if (!alumni.isVerified) { return res.status(400).json({ message: 'Account not verified.' }); }
         const isMatch = await bcrypt.compare(password, alumni.password);
-        if (!isMatch) {
-            return res.status(400).json({ message: 'Invalid credentials.' });
-        }
-        
+        if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
         const token = jwt.sign({ id: alumni._id }, getSecret(), { expiresIn: '1d' });
-
-        res.status(200).json({ 
-            message: 'Login successful.',
-            token,
-            user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName }
-        });
+        res.status(200).json({ message: 'Login successful.', token, user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName } });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ message: 'Server error.' });
@@ -146,31 +132,17 @@ export const login = async (req, res) => {
 export const forgotPassword = async (req, res) => {
     const transporter = createTransporter();
     const { email } = req.body;
-
     try {
         const alumni = await Alumni.findOne({ email, isVerified: true });
-
-        if (!alumni) {
-            return res.status(200).json({ message: 'If this email is registered, a password reset OTP will be sent.' });
-        }
-
+        if (!alumni) { return res.status(200).json({ message: 'If this email is registered, a password reset OTP will be sent.' }); }
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000); 
-
         alumni.otp = otp;
         alumni.otpExpires = otpExpires;
         await alumni.save();
-
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Alumni Password Reset Code',
-            html: `<p>Your code to reset your password is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
-        };
-
+        const mailOptions = { from: process.env.EMAIL_USER, to: email, subject: 'Alumni Password Reset Code', html: `<p>Your code to reset your password is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`, };
         await transporter.sendMail(mailOptions);
         res.status(200).json({ message: 'OTP sent successfully for password reset.' });
-
     } catch (error) {
         console.error('Forgot password error:', error);
         res.status(500).json({ message: 'Server error. Could not send reset email.' });
@@ -179,32 +151,17 @@ export const forgotPassword = async (req, res) => {
 
 // 3. RESET PASSWORD CONTROLLER
 export const resetPassword = async (req, res) => {
-    const transporter = createTransporter();
     const { email, otp, newPassword } = req.body;
-
     try {
-        const alumni = await Alumni.findOne({ 
-            email, 
-            otp, 
-            otpExpires: { $gt: Date.now() },
-            isVerified: true
-        });
-
-        if (!alumni) {
-            return res.status(400).json({ message: 'Invalid or expired OTP.' });
-        }
-        
+        const alumni = await Alumni.findOne({ email, otp, otpExpires: { $gt: Date.now() }, isVerified: true });
+        if (!alumni) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
-
         alumni.password = hashedPassword;
         alumni.otp = undefined; 
         alumni.otpExpires = undefined; 
-        
         await alumni.save();
-
         res.status(200).json({ message: 'Password has been successfully reset. You can now log in.' });
-
     } catch (error) {
         console.error('Reset password error:', error);
         res.status(500).json({ message: 'Server error during password reset.' });
@@ -215,46 +172,19 @@ export const resetPassword = async (req, res) => {
 export const loginOtpSend = async (req, res) => {
     const transporter = createTransporter();
     const { identifier } = req.body; 
-
-    if (!identifier) {
-        return res.status(400).json({ message: 'Email or phone number is required.' });
-    }
-
+    if (!identifier) { return res.status(400).json({ message: 'Email or phone number is required.' }); }
     try {
-        const alumni = await Alumni.findOne({ 
-            $or: [
-                { email: identifier },
-                { phoneNumber: identifier }
-            ],
-            isVerified: true
-        });
-
-        if (!alumni) {
-            return res.status(404).json({ message: 'Login failed. User not found or service error.' });
-        }
-
+        const alumni = await Alumni.findOne({ $or: [{ email: identifier }, { phoneNumber: identifier }], isVerified: true });
+        if (!alumni) { return res.status(404).json({ message: 'Login failed. User not found or service error.' }); }
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000); 
-
         alumni.otp = otp;
         alumni.otpExpires = otpExpires;
         await alumni.save();
-
         let deliveryMethod = alumni.email ? 'email' : 'phone number';
-        
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: alumni.email, 
-            subject: 'Your Passwordless Login Code',
-            html: `<p>Your one-time code to sign in is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
-        };
-
+        const mailOptions = { from: process.env.EMAIL_USER, to: alumni.email, subject: 'Your Passwordless Login Code', html: `<p>Your one-time code to sign in is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`, };
         await transporter.sendMail(mailOptions);
-        
-        res.status(200).json({ 
-            message: `OTP sent successfully to your registered ${deliveryMethod}.`
-        });
-
+        res.status(200).json({ message: `OTP sent successfully to your registered ${deliveryMethod}.` });
     } catch (error) {
         console.error('Login OTP send error:', error);
         res.status(500).json({ message: 'Server error. Could not send OTP.' });
@@ -264,34 +194,14 @@ export const loginOtpSend = async (req, res) => {
 // 5. LOGIN OTP VERIFY CONTROLLER
 export const loginOtpVerify = async (req, res) => {
     const { identifier, otp } = req.body;
-
     try {
-        const alumni = await Alumni.findOne({
-            $or: [
-                { email: identifier },
-                { phoneNumber: identifier }
-            ],
-            otp: otp,
-            otpExpires: { $gt: Date.now() },
-            isVerified: true
-        });
-
-        if (!alumni) {
-            return res.status(400).json({ message: 'Invalid or expired OTP. Please try again.' });
-        }
-
+        const alumni = await Alumni.findOne({ $or: [{ email: identifier }, { phoneNumber: identifier }], otp: otp, otpExpires: { $gt: Date.now() }, isVerified: true });
+        if (!alumni) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         alumni.otp = undefined;
         alumni.otpExpires = undefined;
         await alumni.save();
-
         const token = jwt.sign({ id: alumni._id }, getSecret(), { expiresIn: '1d' });
-
-        res.status(200).json({ 
-            message: 'OTP verified. Login successful.',
-            token,
-            user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName }
-        });
-
+        res.status(200).json({ message: 'OTP verified. Login successful.', token, user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName } });
     } catch (error) {
         console.error('Login OTP Verify Error:', error);
         res.status(500).json({ message: 'Server error during OTP verification.' });
