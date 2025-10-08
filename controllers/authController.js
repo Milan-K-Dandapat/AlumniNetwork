@@ -1,43 +1,32 @@
 import Alumni from '../models/Alumni.js';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
-// --- ✅ FIX: Switched from 'bcrypt' to 'bcryptjs' ---
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const OTP_EXPIRY_MINUTES = 10;
-// CRITICAL FIX: Get the secret inside the functions where it's needed, 
 const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1'; 
 
 
 // =========================================================================
-// ✅ UPDATE: Use standard Nodemailer config for maximum compatibility
-// The 'secure' flag automatically determines the port (465 for true, 587 for false)
+// ✅ FINAL FIX: SENDGRID CONFIGURATION
 // =========================================================================
 const createTransporter = () => {
     return nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        // We will stick with 587 as it's the standard for STARTTLS
-        port: 587, 
-        secure: false, // Must be false for port 587
+        host: 'smtp.sendgrid.net',   // The correct host for SendGrid
+        port: 587,                   // Standard SMTP port
+        secure: false,               // Use STARTTLS
         auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
+            user: 'apikey',          // SendGrid SMTP username is always 'apikey'
+            pass: process.env.SENDGRID_API_KEY, // Use the new API Key variable
         },
-        // --- 🚀 FINAL FIX: Bypass potential certificate issues ---
-        tls: {
-            // Allows self-signed certs and bypasses issues common in cloud environments
-            // WARNING: Only use this if standard ports fail, and use a dedicated email user!
-            rejectUnauthorized: false 
-        },
-        timeout: 30000 // Increase timeout slightly, just in case
     });
 };
 
 // --- REGISTRATION ---
 export const sendOtp = async (req, res) => {
     const transporter = createTransporter();
-    const { email, fullName, batch, phoneNumber, company, position } = req.body;
+    const { email, fullName, batch, phoneNumber, company, position } = req.body; 
 
     if (!email || !fullName || !batch || !phoneNumber) {
         return res.status(400).json({ message: 'All required fields must be filled.' });
@@ -45,24 +34,17 @@ export const sendOtp = async (req, res) => {
 
     try {
         let alumni = await Alumni.findOne({ email });
-        if (alumni && alumni.isVerified) {
-            return res.status(400).json({ message: 'This email is already registered.' });
-        }
+        // NOTE: We do not check for isVerified here. The purpose is to allow 
+        // overwriting an existing UNVERIFIED record.
         
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000); 
         
-        const alumniData = { 
-            fullName, 
-            email, 
-            phoneNumber, 
-            batch, 
-            otp, 
-            otpExpires 
-        };
+        // Prepare data payload, handling optional fields sent by the frontend
+        const alumniData = { fullName, email, phoneNumber, batch, otp, otpExpires };
         
-        if (company !== undefined && company !== null) alumniData.company = company;
-        if (position !== undefined && position !== null) alumniData.position = position;
+        if (company) alumniData.company = company;
+        if (position) alumniData.position = position;
 
         if (alumni) {
             alumni.set(alumniData); 
@@ -71,20 +53,24 @@ export const sendOtp = async (req, res) => {
             await Alumni.create(alumniData);
         }
         
+        // Database save successful! Now attempt to send email.
+        
         const mailOptions = {
-            from: process.env.EMAIL_USER,
+            from: process.env.EMAIL_USER, // Verified sender email
             to: email,
             subject: 'Your AlumniConnect Verification Code',
             html: `<p>Your OTP is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
         };
 
         await transporter.sendMail(mailOptions);
+        
+        // Only return success if email sends
         res.status(200).json({ message: 'OTP sent successfully to your email.' });
 
     } catch (error) {
-        // Log the SPECIFIC Nodemailer error to the console for Render logs
-        console.error('Error sending email:', error); 
-        res.status(500).json({ message: 'Server error.' });
+        // If the email fails, we log it and return the specific server error.
+        console.error('Error sending email (SendGrid Auth Failure likely):', error); 
+        res.status(500).json({ message: 'Server error. Could not send OTP.' });
     }
 };
 
