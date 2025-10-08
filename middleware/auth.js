@@ -1,29 +1,40 @@
 import jwt from 'jsonwebtoken';
 
+/**
+ * Middleware to verify a JSON Web Token (JWT) provided in the Authorization header.
+ * If valid, it attaches the decoded user payload to req.user and calls next().
+ * If invalid or missing, it returns a 401 Unauthorized response.
+ */
 const auth = (req, res, next) => {
-    // Get token from the Authorization header
+    // 1. Get token from the Authorization header (e.g., "Bearer <token>")
     const authHeader = req.header('Authorization');
 
-    // Check if token exists
+    // 2. Check if the Authorization header exists
     if (!authHeader) {
         return res.status(401).json({ msg: 'No token, authorization denied' });
     }
 
     try {
-        // The token is sent as "Bearer <token>", so we split and get the second part
-        const token = authHeader.split(' ')[1];
-
-        if (!token) {
-             return res.status(401).json({ msg: 'Token format is invalid, authorization denied' });
+        // 3. Extract the token part (splitting "Bearer <token>")
+        const tokenParts = authHeader.split(' ');
+        
+        if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
+             return res.status(401).json({ msg: 'Token format is invalid (Expected: Bearer <token>), authorization denied' });
         }
+        
+        const token = tokenParts[1];
 
-        // Verify the token using the secret key
+        // 4. Verify the token using the secret key
+        // NOTE: Ensure process.env.JWT_SECRET is correctly loaded in your server.js
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Add the user's payload (which contains their ID) to the request object
+        // 5. Add the user's payload (ID) to the request object
         req.user = decoded; 
-        next(); // Proceed to the next step (the route handler)
+        
+        // 6. Proceed to the next middleware or route handler
+        next(); 
     } catch (err) {
+        // This block catches JWT verification failures (e.g., token expired, invalid signature)
         res.status(401).json({ msg: 'Token is not valid' });
     }
 };

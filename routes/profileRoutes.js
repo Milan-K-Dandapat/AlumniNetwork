@@ -4,9 +4,9 @@ import Alumni from '../models/Alumni.js';
 
 const router = express.Router();
 
-// @route   GET /api/profile/me
-// @desc    Get current user's profile
-// @access  Private
+// @route   GET /api/profile/me
+// @desc    Get current user's profile
+// @access  Private
 router.get('/me', auth, async (req, res) => {
     try {
         // Fetch profile and exclude the password field
@@ -21,9 +21,9 @@ router.get('/me', auth, async (req, res) => {
     }
 });
 
-// @route   PUT /api/profile/me
-// @desc    Update current user's profile
-// @access  Private
+// @route   PUT /api/profile/me
+// @desc    Update current user's profile
+// @access  Private
 router.put('/me', auth, async (req, res) => {
     const { 
         fullName, 
@@ -61,7 +61,7 @@ router.put('/me', auth, async (req, res) => {
         ).select('-password');
 
         if (!updatedProfile) {
-             return res.status(404).json({ msg: 'User profile not found after update attempt' });
+            return res.status(404).json({ msg: 'User profile not found after update attempt' });
         }
 
         res.json(updatedProfile);
@@ -74,16 +74,15 @@ router.put('/me', auth, async (req, res) => {
     }
 });
 
-// @route   GET /api/profile/user/:userId
-// @desc    Get a user's public profile by their ID (The route needed for DirectoryItemPage)
-// @access  Private
+// @route   GET /api/profile/user/:userId
+// @desc    Get a user's public profile by their ID (The route needed for DirectoryItemPage)
+// @access  Private
 router.get('/user/:userId', auth, async (req, res) => {
     try {
         // Find the profile and exclude sensitive data
         const profile = await Alumni.findById(req.params.userId).select('-password -otp -otpExpires -phoneNumber -email');
         
         if (!profile) {
-            // This is the source of your 404 error if the user ID is invalid/non-existent
             return res.status(404).json({ msg: 'Profile not found' });
         }
         
