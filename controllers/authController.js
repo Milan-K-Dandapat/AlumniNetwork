@@ -17,15 +17,20 @@ const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d
 const createTransporter = () => {
     return nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        // --- ✅ FIX: Swapping to Port 587 with STARTTLS ---
+        // We will stick with 587 as it's the standard for STARTTLS
         port: 587, 
         secure: false, // Must be false for port 587
-        // requireTLS: true, // Optional but good practice for 587
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS,
         },
-        timeout: 20000 // Keep the generous timeout
+        // --- 🚀 FINAL FIX: Bypass potential certificate issues ---
+        tls: {
+            // Allows self-signed certs and bypasses issues common in cloud environments
+            // WARNING: Only use this if standard ports fail, and use a dedicated email user!
+            rejectUnauthorized: false 
+        },
+        timeout: 30000 // Increase timeout slightly, just in case
     });
 };
 
