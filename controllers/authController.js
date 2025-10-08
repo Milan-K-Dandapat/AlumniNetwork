@@ -7,28 +7,36 @@ import jwt from 'jsonwebtoken';
 
 const OTP_EXPIRY_MINUTES = 10;
 // CRITICAL FIX: Get the secret inside the functions where it's needed, 
-// using a fallback value to prevent "secretOrPrivateKey must have a value" error 
-// if process.env.JWT_SECRET hasn't loaded when the file is imported.
-const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1'; // <-- USE YOUR ACTUAL SECRET/FALLBACK
+const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1'; 
 
 
+// =========================================================================
+// ✅ UPDATE: Use standard Nodemailer config for maximum compatibility
+// The 'secure' flag automatically determines the port (465 for true, 587 for false)
+// =========================================================================
 const createTransporter = () => {
+    // We explicitly set the port and security based on the environment best practice
+    // but we can also rely on Nodemailer's defaults for common services like Gmail
     return nodemailer.createTransport({
-        // 🚀 CRITICAL FIX: Explicitly set host, port, and security for Render/Gmail
         host: 'smtp.gmail.com',
-        port: 465,
-        secure: true, // Use SSL/TLS for port 465
+        // Using port 465 with secure: true is correct, but if this fails on Render, 
+        // the server may be configured to prefer STARTTLS on port 587.
+        port: 465, 
+        secure: true, 
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS,
         },
+        // IMPORTANT: Added a timeout just in case the connection hangs indefinitely
+        // Although the 500 error suggests authentication failure, not timeout.
+        timeout: 20000 // 20 seconds
     });
 };
+// =========================================================================
 
 // --- REGISTRATION ---
 export const sendOtp = async (req, res) => {
     const transporter = createTransporter();
-    // Fields are destructured to easily check for undefined
     const { email, fullName, batch, phoneNumber, company, position } = req.body;
 
     if (!email || !fullName || !batch || !phoneNumber) {
@@ -44,9 +52,6 @@ export const sendOtp = async (req, res) => {
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000); 
         
-        // =================================================================
-        //                  ✅ FIX IMPLEMENTED HERE
-        // =================================================================
         const alumniData = { 
             fullName, 
             email, 
@@ -56,17 +61,13 @@ export const sendOtp = async (req, res) => {
             otpExpires 
         };
         
-        // ONLY include optional fields if a value was provided in the request body (not undefined)
         if (company !== undefined && company !== null) alumniData.company = company;
         if (position !== undefined && position !== null) alumniData.position = position;
-        // =================================================================
 
         if (alumni) {
-            // Update the existing document with the new data
             alumni.set(alumniData); 
             await alumni.save();
         } else {
-            // Create a new document
             await Alumni.create(alumniData);
         }
         
@@ -81,7 +82,8 @@ export const sendOtp = async (req, res) => {
         res.status(200).json({ message: 'OTP sent successfully to your email.' });
 
     } catch (error) {
-        console.error('Error sending email:', error);
+        // Log the SPECIFIC Nodemailer error to the console for Render logs
+        console.error('Error sending email:', error); 
         res.status(500).json({ message: 'Server error.' });
     }
 };
@@ -109,7 +111,6 @@ export const verifyOtpAndRegister = async (req, res) => {
             req.io.emit('newUserRegistered', newUserCount);
         }
 
-        // Generate token using the secured secret function
         const token = jwt.sign({ id: alumni._id }, getSecret(), { expiresIn: '1d' });
 
         res.status(201).json({ 
@@ -142,7 +143,6 @@ export const login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials.' });
         }
         
-        // Generate token using the secured secret function
         const token = jwt.sign({ id: alumni._id }, getSecret(), { expiresIn: '1d' });
 
         res.status(200).json({ 
@@ -156,7 +156,7 @@ export const login = async (req, res) => {
     }
 };
 
-// 2. FORGOT PASSWORD CONTROLLER (POST /api/auth/forgot-password)
+// 2. FORGOT PASSWORD CONTROLLER
 export const forgotPassword = async (req, res) => {
     const transporter = createTransporter();
     const { email } = req.body;
@@ -165,7 +165,6 @@ export const forgotPassword = async (req, res) => {
         const alumni = await Alumni.findOne({ email, isVerified: true });
 
         if (!alumni) {
-            // Secure response to prevent email enumeration
             return res.status(200).json({ message: 'If this email is registered, a password reset OTP will be sent.' });
         }
 
@@ -192,7 +191,7 @@ export const forgotPassword = async (req, res) => {
     }
 };
 
-// 3. RESET PASSWORD CONTROLLER (POST /api/auth/reset-password)
+// 3. RESET PASSWORD CONTROLLER
 export const resetPassword = async (req, res) => {
     const transporter = createTransporter();
     const { email, otp, newPassword } = req.body;
@@ -213,7 +212,7 @@ export const resetPassword = async (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword, salt);
 
         alumni.password = hashedPassword;
-        alumni.otp = undefined; // Clear OTP fields
+        alumni.otp = undefined; 
         alumni.otpExpires = undefined; 
         
         await alumni.save();
@@ -226,11 +225,7 @@ export const resetPassword = async (req, res) => {
     }
 };
 
-// ======================================================================
-// 3. PASSWORDLESS OTP LOGIN (NEW FEATURE)
-// ======================================================================
-
-// 4. LOGIN OTP SEND CONTROLLER (POST /api/auth/login-otp-send)
+// 4. LOGIN OTP SEND CONTROLLER
 export const loginOtpSend = async (req, res) => {
     const transporter = createTransporter();
     const { identifier } = req.body; 
@@ -240,7 +235,6 @@ export const loginOtpSend = async (req, res) => {
     }
 
     try {
-        // Find user by email OR phone number and ensure they are verified
         const alumni = await Alumni.findOne({ 
             $or: [
                 { email: identifier },
@@ -250,14 +244,12 @@ export const loginOtpSend = async (req, res) => {
         });
 
         if (!alumni) {
-            // Use the same error as the frontend was expecting for consistency
             return res.status(404).json({ message: 'Login failed. User not found or service error.' });
         }
 
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000); 
 
-        // Save the generated OTP and expiry to the user's document
         alumni.otp = otp;
         alumni.otpExpires = otpExpires;
         await alumni.save();
@@ -266,12 +258,11 @@ export const loginOtpSend = async (req, res) => {
         
         const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: alumni.email, // Assume we always send to email if it exists
+            to: alumni.email, 
             subject: 'Your Passwordless Login Code',
             html: `<p>Your one-time code to sign in is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
         };
 
-        // NOTE: Implement SMS logic here if phoneNumber is the identifier and email is null
         await transporter.sendMail(mailOptions);
         
         res.status(200).json({ 
@@ -284,12 +275,11 @@ export const loginOtpSend = async (req, res) => {
     }
 };
 
-// 5. LOGIN OTP VERIFY CONTROLLER (POST /api/auth/login-otp-verify)
+// 5. LOGIN OTP VERIFY CONTROLLER
 export const loginOtpVerify = async (req, res) => {
     const { identifier, otp } = req.body;
 
     try {
-        // Find a verified user by either their email or phone number who also has a valid OTP
         const alumni = await Alumni.findOne({
             $or: [
                 { email: identifier },
@@ -300,20 +290,16 @@ export const loginOtpVerify = async (req, res) => {
             isVerified: true
         });
 
-        // If no user is found, the OTP is invalid or expired
         if (!alumni) {
             return res.status(400).json({ message: 'Invalid or expired OTP. Please try again.' });
         }
 
-        // Clear the OTP fields after successful verification
         alumni.otp = undefined;
         alumni.otpExpires = undefined;
         await alumni.save();
 
-        // Generate a JWT token for the user to log them in
         const token = jwt.sign({ id: alumni._id }, getSecret(), { expiresIn: '1d' });
 
-        // Send back the token and user data
         res.status(200).json({ 
             message: 'OTP verified. Login successful.',
             token,
