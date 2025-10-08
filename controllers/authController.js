@@ -9,7 +9,7 @@ const OTP_EXPIRY_MINUTES = 10;
 // CRITICAL FIX: Get the secret inside the functions where it's needed, 
 // using a fallback value to prevent "secretOrPrivateKey must have a value" error 
 // if process.env.JWT_SECRET hasn't loaded when the file is imported.
-const getSecret = () => process.env.JWT_SECRET || 'your_default_fallback_secret_key';
+const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1'; // <-- USE YOUR ACTUAL SECRET/FALLBACK
 
 
 const createTransporter = () => {
