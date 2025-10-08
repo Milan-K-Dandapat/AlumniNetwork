@@ -208,7 +208,7 @@ app.post('/api/verify-payment', async (req, res) => {
 });
 
 
-// --- ✅ ADDED: SERVE FRONTEND IN PRODUCTION ---
+// --- SERVE FRONTEND IN PRODUCTION ---
 if (process.env.NODE_ENV === 'production') {
     // Correctly resolve the path to the client's build directory
     const clientBuildPath = path.join(__dirname, '../client/build');
@@ -216,13 +216,12 @@ if (process.env.NODE_ENV === 'production') {
     // Set the static folder for the built React app
     app.use(express.static(clientBuildPath));
   
+    // --- ✅ FIX: Changed the catch-all route to prevent crash on Render ---
     // For any route that is not an API route, send back the main index.html file
-    // This allows React Router to handle client-side routing
-    app.get('*', (req, res) => {
+    app.get('/*', (req, res) => {
       res.sendFile(path.resolve(clientBuildPath, 'index.html'));
     });
 }
-// --- ✅ END OF ADDED CODE ---
 
 
 // Socket.io connection logic
@@ -236,3 +235,4 @@ io.on('connection', (socket) => {
 server.listen(process.env.PORT, () => {
     console.log(`🚀 Server is running on port ${process.env.PORT}`)
 });
+
