@@ -1,7 +1,8 @@
 import Alumni from '../models/Alumni.js';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
-import bcrypt from 'bcrypt';
+// --- ✅ FIX: Switched from 'bcrypt' to 'bcryptjs' ---
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const OTP_EXPIRY_MINUTES = 10;
