@@ -175,7 +175,8 @@ export const forgotPassword = async (req, res) => {
 
 // 3. RESET PASSWORD CONTROLLER (POST /api/auth/reset-password)
 export const resetPassword = async (req, res) => {
-    const { email, otp, newPassword } = req.body;
+    const transporter = createTransporter();
+    const { email, otp, newPassword } = req.body;
 
     try {
         const alumni = await Alumni.findOne({ 
