@@ -8,27 +8,25 @@ import { Server } from 'socket.io';
 import { v2 as cloudinary } from 'cloudinary'; 
 import Razorpay from 'razorpay'; 
 import crypto from 'crypto'; 
-import mongoose from 'mongoose'; // <-- Explicitly import Mongoose
+import mongoose from 'mongoose'; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename); 
 
-// --- CRITICAL FIX: HARDCODE MONGO_URI for guaranteed database connection ---
-// Since the environment variables are unreliable on startup, we force the URI here.
-// NOTE: If you change your DB password, you MUST update this line manually.
-const MONGO_URI_FIXED = 'mongodb+srv://milan-dev:Milan123@cluster0.0stui7v.mongodb.net/alumniDB?retryWrites=true&w=majority&appName=Cluster0';
-// --------------------------------------------------------------------------
-
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-// Connect to MongoDB using the guaranteed URI
-mongoose.connect(MONGO_URI_FIXED)
+// --- ✅ SECURITY FIX: Revert to using the secure environment variable ---
+const MONGO_URI = process.env.MONGO_URI; 
+
+// Connect to MongoDB using the secure environment variable
+mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected...'))
     .catch((err) => {
-        // If this fails, the server will crash immediately, but at least we know why.
-        console.error('❌ FATAL DB ERROR: Check MONGO_URI or Database Access.', err);
+        // Log the error prominently and rely on Render environment to be set
+        console.error('❌ FATAL DB ERROR: Check MONGO_URI in .env and Render Secrets.', err);
         // Do not throw here, allow the app to initialize, but log the error prominently
     });
+// -------------------------------------------------------------------------
 
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
@@ -41,29 +39,46 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-
-// NOTE: connectDB() is no longer needed since we connect directly above.
-// Remove the old connectDB() call if it was present.
-// connectDB(); // Removed if it was here
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const NETLIFY_FRONTEND_URL = 'https://igitmcaalumni.netlify.app'; 
+// =========================================================================
+//                  CORS FIX: Define Allowed Origins
+// =========================================================================
+
+// Define all origins that are allowed to access this API
+const ALLOWED_ORIGINS = [
+    'https://igitmcaalumni.netlify.app',
+    'http://localhost:3000', 
+];
 
 const server = http.createServer(app);
+
+// 1. Socket.io CORS Configuration
 const io = new Server(server, {
     cors: {
-        origin: NETLIFY_FRONTEND_URL, 
+        origin: ALLOWED_ORIGINS, 
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true
     }
 });
 
+// 2. Express Middleware CORS Configuration
 app.use(cors({
-    origin: NETLIFY_FRONTEND_URL,
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        
+        if (ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.error(`❌ CORS blocked for origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'), false);
+        }
+    },
     credentials: true
 }));
+// =========================================================================
+
 app.use(express.json());
 
 app.use((req, res, next) => {
