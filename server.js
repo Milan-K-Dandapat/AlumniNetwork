@@ -216,9 +216,9 @@ if (process.env.NODE_ENV === 'production') {
     // Set the static folder for the built React app
     app.use(express.static(clientBuildPath));
   
-    // --- ✅ FIX: Changed the catch-all route to prevent crash on Render ---
-    // For any route that is not an API route, send back the main index.html file
-    app.get('/*', (req, res) => {
+    // --- ✅ FINAL FIX: Use a regular expression for the catch-all route ---
+    // This serves the React app for any path that is not an API route
+    app.get(/^(?!\/api).*/, (req, res) => {
       res.sendFile(path.resolve(clientBuildPath, 'index.html'));
     });
 }
