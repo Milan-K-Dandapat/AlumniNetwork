@@ -1,13 +1,14 @@
 import express from 'express';
 import { v2 as cloudinary } from 'cloudinary';
-import auth from '../middleware/auth.js';
+// Removed: import auth from '../middleware/auth.js'; // Removed if authentication is handled outside
+// Note: If you have an index router file, ensure 'auth' is not applied globally.
 
 const router = express.Router();
 
 // @route   GET /api/gallery/:folderPath
 // @desc    Fetches all images/videos from a specified Cloudinary folder path
-// @access  Private
-router.get('/:folderPath', auth, async (req, res) => {
+// @access  Public (Authentication middleware 'auth' is REMOVED for public access)
+router.get('/:folderPath', async (req, res) => { // Removed 'auth' middleware here
     // Decode the folder path from the URL
     const encodedFolderPath = req.params.folderPath;
     const folderPath = decodeURIComponent(encodedFolderPath); 
@@ -17,25 +18,22 @@ router.get('/:folderPath', auth, async (req, res) => {
     }
 
     try {
-        // --- FINAL FIX: REMOVED THE INVALID .with_field('secure_url') PARAMETER ---
+        // Use the standard folder search expression
         const expression = `folder=${folderPath}`;
         
         const result = await cloudinary.search
-            .expression(expression) // Use the standard folder search expression
-            // .with_field('secure_url') <-- THIS LINE CRASHED THE API, IT IS REMOVED
+            .expression(expression) 
             .max_results(200)
             .execute();
 
         // Filter out resources that are not images or videos and extract secure_url
         const galleryUrls = result.resources
             .filter(r => r.resource_type === 'image' || r.resource_type === 'video')
-            .map(r => r.secure_url); // secure_url is returned by default by the search API
+            .map(r => r.secure_url);
 
-        // Logging to verify success
-        console.log(`Cloudinary API Success: Found ${result.total_count} assets in folder: ${folderPath}`);
+        console.log(`Cloudinary API Success: Found ${galleryUrls.length} public assets in folder: ${folderPath}`);
 
         if (galleryUrls.length === 0) {
-            console.warn(`No filtered media found, though total_count was ${result.total_count}`);
             return res.json({ message: 'No assets found in folder.', urls: [] });
         }
 
@@ -45,7 +43,8 @@ router.get('/:folderPath', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Cloudinary Gallery Fetch Failure:', error);
-        res.status(500).json({ message: 'Server failed to fetch gallery resources (Check API permissions).' });
+        // Ensure this error is not returning sensitive info
+        res.status(500).json({ message: 'Server failed to fetch gallery resources (Check Cloudinary credentials or folder name).' });
     }
 });
 
