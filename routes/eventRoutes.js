@@ -132,7 +132,7 @@ router.post('/verify-payment', async (req, res) => {
  * @desc    Get all non-archived events (PUBLIC)
  * @access  Public
  */
-router.get('/events/upcoming', async (req, res) => {
+router.get('/upcoming', async (req, res) => {
     try {
         const events = await Event.find({ isArchived: false }).sort({ date: 1 });
         res.json(events);
@@ -151,7 +151,7 @@ router.get('/events/upcoming', async (req, res) => {
  * @desc    Create a new event (ADMIN)
  * @access  Private
  */
-router.post('/events', async (req, res) => {
+router.post('/', async (req, res) => { // Removed '/events' because the router is mounted at /api/events
     // NOTE: Apply authentication middleware here
     try {
         const newEvent = new Event(req.body);
@@ -175,7 +175,7 @@ router.post('/events', async (req, res) => {
  * @desc    Update an existing event (ADMIN)
  * @access  Private
  */
-router.put('/events/:id', async (req, res) => {
+router.put('/:id', async (req, res) => { // Removed '/events' and uses /:id
     // NOTE: Apply authentication middleware here
     try {
         // Use findByIdAndUpdate and retrieve the MongoDB _id from the URL params
@@ -209,7 +209,7 @@ router.put('/events/:id', async (req, res) => {
  * @desc    Delete an event (ADMIN)
  * @access  Private
  */
-router.delete('/events/:id', async (req, res) => {
+router.delete('/:id', async (req, res) => { // Removed '/events' and uses /:id
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
@@ -237,7 +237,7 @@ router.delete('/events/:id', async (req, res) => {
  * @desc    Update archive links (media links) for a past event (ADMIN)
  * @access  Private
  */
-router.put('/events/archive/:id', async (req, res) => {
+router.put('/archive/:id', async (req, res) => { // Removed '/events' and changed to '/archive/:id'
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
@@ -255,8 +255,7 @@ router.put('/events/archive/:id', async (req, res) => {
             return res.status(404).json({ message: 'Archive event not found.' });
         }
 
-        // We assume the frontend refresh handles the archive update, 
-        // but emitting the event ensures public pages update too.
+        // Emit event to update public pages
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (ARCHIVE PUT) ---');
