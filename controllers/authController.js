@@ -1,8 +1,9 @@
 import Alumni from '../models/Alumni.js';
-import nodemailer from 'nodemailer';
+// REMOVED: import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import sgMail from '@sendgrid/mail'; // ADDED: SendGrid REST API client
 
 const OTP_EXPIRY_MINUTES = 10;
 // CRITICAL FIX: Ensures the fallback secret is used if the environment variable fails
@@ -10,24 +11,28 @@ const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d
 
 
 // =========================================================================
-// ✅ FINAL FIX: SENDGRID CONFIGURATION
-// This configuration uses the SENDGRID_API_KEY for robust email sending.
+// ✅ NEW CONFIGURATION: Uses the SendGrid REST API via HTTPS (Port 443)
 // =========================================================================
+sgMail.setApiKey(process.env.SENDGRID_API_KEY); 
+
+// REMOVED: The entire createTransporter function is no longer needed.
+/*
 const createTransporter = () => {
     return nodemailer.createTransport({
-        host: 'smtp.sendgrid.net',   // The correct host for SendGrid
-        port: 587,                   // Standard SMTP port
-        secure: false,               // Use STARTTLS
+        host: 'smtp.sendgrid.net', 
+        port: 587, 
+        secure: false, 
         auth: {
-            user: 'apikey',          // SendGrid SMTP username is always 'apikey'
-            pass: process.env.SENDGRID_API_KEY, // The API Key (set in Render)
+            user: 'apikey', 
+            pass: process.env.SENDGRID_API_KEY,
         },
     });
 };
+*/
 
 // --- REGISTRATION ---
 export const sendOtp = async (req, res) => {
-    const transporter = createTransporter();
+    // REMOVED: const transporter = createTransporter();
     const { email, fullName, batch, phoneNumber, company, position } = req.body; 
 
     if (!email || !fullName || !batch || !phoneNumber) {
@@ -55,21 +60,21 @@ export const sendOtp = async (req, res) => {
         
         // Database save successful! Now attempt to send email (the point of failure).
         
-        const mailOptions = {
+        const msg = { // Renamed from mailOptions to msg for SendGrid client consistency
             from: process.env.EMAIL_USER, // Must be the verified SendGrid sender email
             to: email,
             subject: 'Your AlumniConnect Verification Code',
             html: `<p>Your OTP is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
         };
 
-        await transporter.sendMail(mailOptions);
+        await sgMail.send(msg); // MODIFIED: Using the SendGrid REST API client
         
         // Only return success if email sends
         res.status(200).json({ message: 'OTP sent successfully to your email.' });
 
     } catch (error) {
         // This specific log ensures we catch any remaining SendGrid authentication failure
-        console.error('Error sending email (SendGrid Authentication Failed):', error); 
+        console.error('Error sending email (SendGrid API Failed):', error); 
         res.status(500).json({ message: 'Server error. Could not send OTP.' });
     }
 };
@@ -130,7 +135,7 @@ export const login = async (req, res) => {
 
 // 2. FORGOT PASSWORD CONTROLLER
 export const forgotPassword = async (req, res) => {
-    const transporter = createTransporter();
+    // REMOVED: const transporter = createTransporter();
     const { email } = req.body;
     try {
         const alumni = await Alumni.findOne({ email, isVerified: true });
@@ -140,8 +145,15 @@ export const forgotPassword = async (req, res) => {
         alumni.otp = otp;
         alumni.otpExpires = otpExpires;
         await alumni.save();
-        const mailOptions = { from: process.env.EMAIL_USER, to: email, subject: 'Alumni Password Reset Code', html: `<p>Your code to reset your password is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`, };
-        await transporter.sendMail(mailOptions);
+        
+        const msg = { // Renamed from mailOptions to msg
+            from: process.env.EMAIL_USER, 
+            to: email, 
+            subject: 'Alumni Password Reset Code', 
+            html: `<p>Your code to reset your password is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`, 
+        };
+        await sgMail.send(msg); // MODIFIED: Using the SendGrid REST API client
+        
         res.status(200).json({ message: 'OTP sent successfully for password reset.' });
     } catch (error) {
         console.error('Forgot password error:', error);
@@ -170,7 +182,7 @@ export const resetPassword = async (req, res) => {
 
 // 4. LOGIN OTP SEND CONTROLLER
 export const loginOtpSend = async (req, res) => {
-    const transporter = createTransporter();
+    // REMOVED: const transporter = createTransporter();
     const { identifier } = req.body; 
     if (!identifier) { return res.status(400).json({ message: 'Email or phone number is required.' }); }
     try {
@@ -182,8 +194,15 @@ export const loginOtpSend = async (req, res) => {
         alumni.otpExpires = otpExpires;
         await alumni.save();
         let deliveryMethod = alumni.email ? 'email' : 'phone number';
-        const mailOptions = { from: process.env.EMAIL_USER, to: alumni.email, subject: 'Your Passwordless Login Code', html: `<p>Your one-time code to sign in is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`, };
-        await transporter.sendMail(mailOptions);
+        
+        const msg = { // Renamed from mailOptions to msg
+            from: process.env.EMAIL_USER, 
+            to: alumni.email, 
+            subject: 'Your Passwordless Login Code', 
+            html: `<p>Your one-time code to sign in is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`, 
+        };
+        await sgMail.send(msg); // MODIFIED: Using the SendGrid REST API client
+        
         res.status(200).json({ message: `OTP sent successfully to your registered ${deliveryMethod}.` });
     } catch (error) {
         console.error('Login OTP send error:', error);
