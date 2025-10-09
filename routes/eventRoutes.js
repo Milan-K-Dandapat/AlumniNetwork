@@ -3,6 +3,8 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import RegistrationPayment from '../models/RegistrationPayment.js';
 import Event from '../models/Event.js';
+// Assuming authentication middleware imports if they were used:
+// import { protect, admin } from '../middleware/authMiddleware.js'; 
 
 const router = express.Router();
 
@@ -150,6 +152,7 @@ router.get('/events/upcoming', async (req, res) => {
  * @access  Private
  */
 router.post('/events', async (req, res) => {
+    // NOTE: Apply authentication middleware here
     try {
         const newEvent = new Event(req.body);
         await newEvent.save();
@@ -161,19 +164,48 @@ router.post('/events', async (req, res) => {
 });
 
 /**
- * @route   GET /api/admin/events
- * @desc    Get a list of all events for the admin dropdown (ADMIN)
+ * @route   GET /api/admin/registered-events
+ * @desc    Get a list of unique events that have successful registrations
  * @access  Private/Admin
  */
-router.get('/admin/events', async (req, res) => {
+router.get('/admin/registered-events', async (req, res) => {
+    // NOTE: Apply authentication middleware here
     try {
-        const events = await Event.find().sort({ date: -1 }).select('title _id');
-        res.json(events);
+        // Use aggregation to find unique event IDs and their titles from successful payments
+        const registeredEvents = await RegistrationPayment.aggregate([
+            // 1. Filter only successful payments
+            { $match: { paymentStatus: 'success' } },
+            
+            // 2. Group by eventId and eventTitle to get unique combinations
+            {
+                $group: {
+                    _id: '$eventId',
+                    eventTitle: { $first: '$eventTitle' }, // Grab the first title found for the group
+                    count: { $sum: 1 } // Get a count of registrations per event
+                }
+            },
+            
+            // 3. Project the output to match the desired frontend structure
+            {
+                $project: {
+                    _id: 0, // Exclude the default _id field
+                    eventId: '$_id', // Rename the grouped ID to eventId
+                    eventTitle: 1, // Include the event title
+                    count: 1 // Include the count
+                }
+            },
+            
+            // 4. Sort alphabetically by title
+            { $sort: { eventTitle: 1 } }
+        ]);
+
+        res.json(registeredEvents);
     } catch (error) {
-        console.error('Error fetching admin events:', error);
-        res.status(500).json({ message: 'Server Error' });
+        console.error('Error fetching registered events:', error);
+        res.status(500).json({ message: 'Server Error during aggregation' });
     }
 });
+
 
 /**
  * @route   GET /api/admin/registrations/:eventId
@@ -181,6 +213,7 @@ router.get('/admin/events', async (req, res) => {
  * @access  Private/Admin
  */
 router.get('/admin/registrations/:eventId', async (req, res) => {
+    // NOTE: Apply authentication middleware here
     try {
         const { eventId } = req.params;
         if (!eventId) {
@@ -198,5 +231,8 @@ router.get('/admin/registrations/:eventId', async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
+
+// NOTE: The old GET /api/admin/events route is removed as it is no longer necessary 
+// for the Registration tab's purpose.
 
 export default router;
