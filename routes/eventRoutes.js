@@ -169,43 +169,43 @@ router.post('/events', async (req, res) => {
  * @access  Private/Admin
  */
 router.get('/admin/registered-events', async (req, res) => {
-    // NOTE: Apply authentication middleware here
     try {
-        // Use aggregation to find unique event IDs and their titles from successful payments
-        const registeredEvents = await RegistrationPayment.aggregate([
-            // 1. Filter only successful payments
-            { $match: { paymentStatus: 'success' } },
-            
-            // 2. Group by eventId and eventTitle to get unique combinations
-            {
-                $group: {
-                    _id: '$eventId',
-                    eventTitle: { $first: '$eventTitle' }, // Grab the first title found for the group
-                    count: { $sum: 1 } // Get a count of registrations per event
-                }
-            },
-            
-            // 3. Project the output to match the desired frontend structure
-            {
-                $project: {
-                    _id: 0, // Exclude the default _id field
-                    eventId: '$_id', // Rename the grouped ID to eventId
-                    eventTitle: 1, // Include the event title
-                    count: 1 // Include the count
-                }
-            },
-            
-            // 4. Sort alphabetically by title
-            { $sort: { eventTitle: 1 } }
-        ]);
+       const registeredEvents = await RegistrationPayment.aggregate([
+    // 1. Filter only successful payments
+    { $match: { paymentStatus: 'success' } },
+    
+    // 2. Group by eventId, using $ifNull to safely handle potentially missing eventTitle
+    {
+        $group: {
+            _id: '$eventId',
+            // Use $ifNull to ensure the eventTitle is always a string, even if the field is missing
+            eventTitle: { $first: { $ifNull: [ '$eventTitle', 'Untitled Event' ] } }, 
+            count: { $sum: 1 } 
+        }
+    },
+    
+    // 3. Project the output
+    {
+        $project: {
+            _id: 0, 
+            eventId: '$_id', 
+            eventTitle: 1, 
+            count: 1 
+        }
+    },
+    
+    // 4. Sort
+    { $sort: { eventTitle: 1 } }
+]);
+
 
         res.json(registeredEvents);
     } catch (error) {
-        console.error('Error fetching registered events:', error);
-        res.status(500).json({ message: 'Server Error during aggregation' });
+        // Log the failure clearly for future debugging
+        console.error('CRITICAL AGGREGATION FAILURE for registered-events:', error); 
+        res.status(500).json({ message: 'Server Error: Failed to fetch registration summary.' });
     }
 });
-
 
 /**
  * @route   GET /api/admin/registrations/:eventId
