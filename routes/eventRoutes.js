@@ -151,7 +151,7 @@ router.get('/upcoming', async (req, res) => {
  * @desc    Create a new event (ADMIN)
  * @access  Private
  */
-router.post('/', async (req, res) => { // Removed '/events' because the router is mounted at /api/events
+router.post('/', async (req, res) => { // ✅ FIX: Route path is '/' because it is mounted at /api/events
     // NOTE: Apply authentication middleware here
     try {
         const newEvent = new Event(req.body);
@@ -175,7 +175,7 @@ router.post('/', async (req, res) => { // Removed '/events' because the router i
  * @desc    Update an existing event (ADMIN)
  * @access  Private
  */
-router.put('/:id', async (req, res) => { // Removed '/events' and uses /:id
+router.put('/:id', async (req, res) => { // ✅ FIX: Route path is '/:id'
     // NOTE: Apply authentication middleware here
     try {
         // Use findByIdAndUpdate and retrieve the MongoDB _id from the URL params
@@ -209,7 +209,7 @@ router.put('/:id', async (req, res) => { // Removed '/events' and uses /:id
  * @desc    Delete an event (ADMIN)
  * @access  Private
  */
-router.delete('/:id', async (req, res) => { // Removed '/events' and uses /:id
+router.delete('/:id', async (req, res) => { // ✅ FIX: Route path is '/:id'
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
@@ -237,7 +237,7 @@ router.delete('/:id', async (req, res) => { // Removed '/events' and uses /:id
  * @desc    Update archive links (media links) for a past event (ADMIN)
  * @access  Private
  */
-router.put('/archive/:id', async (req, res) => { // Removed '/events' and changed to '/archive/:id'
+router.put('/archive/:id', async (req, res) => { // ✅ FIX: Route path is '/archive/:id'
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
