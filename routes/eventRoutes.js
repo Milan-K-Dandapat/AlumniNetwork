@@ -137,7 +137,24 @@ router.get('/upcoming', async (req, res) => {
         const events = await Event.find({ isArchived: false }).sort({ date: 1 });
         res.json(events);
     } catch (error) {
-        res.status(500).json({ message: 'Server Error' });
+        console.error('Error fetching upcoming events:', error);
+        res.status(500).json({ message: 'Server Error fetching upcoming events' });
+    }
+});
+
+/**
+ * @route   GET /api/events/past  <-- 🚨 CRITICAL ADDITION
+ * @desc    Get all archived events (PUBLIC)
+ * @access  Public
+ */
+router.get('/past', async (req, res) => {
+    try {
+        // Fetch events where isArchived is true, sort by date descending
+        const events = await Event.find({ isArchived: true }).sort({ date: -1 });
+        res.json(events);
+    } catch (error) {
+        console.error('Error fetching past events:', error);
+        res.status(500).json({ message: 'Server Error fetching past events.' });
     }
 });
 
@@ -151,13 +168,13 @@ router.get('/upcoming', async (req, res) => {
  * @desc    Create a new event (ADMIN)
  * @access  Private
  */
-router.post('/', async (req, res) => { // ✅ FIX: Route path is '/' because it is mounted at /api/events
+router.post('/', async (req, res) => {
     // NOTE: Apply authentication middleware here
     try {
         const newEvent = new Event(req.body);
         await newEvent.save();
 
-        // 🚀 CRITICAL FIX: Emit WebSocket event to all clients
+        // 🚀 CRITICAL: Emit WebSocket event to all clients
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (POST) ---');
@@ -175,10 +192,9 @@ router.post('/', async (req, res) => { // ✅ FIX: Route path is '/' because it 
  * @desc    Update an existing event (ADMIN)
  * @access  Private
  */
-router.put('/:id', async (req, res) => { // ✅ FIX: Route path is '/:id'
+router.put('/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
     try {
-        // Use findByIdAndUpdate and retrieve the MongoDB _id from the URL params
         const eventId = req.params.id; 
         
         const updatedEvent = await Event.findByIdAndUpdate(
@@ -191,7 +207,7 @@ router.put('/:id', async (req, res) => { // ✅ FIX: Route path is '/:id'
             return res.status(404).json({ message: 'Event not found.' });
         }
         
-        // 🚀 CRITICAL FIX: Emit WebSocket event to all clients
+        // 🚀 CRITICAL: Emit WebSocket event to all clients
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (PUT) ---');
@@ -205,11 +221,45 @@ router.put('/:id', async (req, res) => { // ✅ FIX: Route path is '/:id'
 });
 
 /**
+ * @route   PATCH /api/events/finalize/:id  <-- 🚨 CRITICAL ADDITION (Used by AdminPage.js)
+ * @desc    Move an event from Upcoming to Archived (ADMIN)
+ * @access  Private
+ */
+router.patch('/finalize/:id', async (req, res) => { 
+    // NOTE: Apply authentication middleware here
+    try {
+        const eventId = req.params.id;
+        
+        // Mark as archived and update optional media links passed in req.body
+        const finalizedEvent = await Event.findByIdAndUpdate(
+            eventId,
+            { isArchived: true, ...req.body }, 
+            { new: true }
+        );
+
+        if (!finalizedEvent) {
+            return res.status(404).json({ message: 'Event not found.' });
+        }
+        
+        // 🚀 CRITICAL: Emit WebSocket event to refresh both upcoming and past lists
+        if (req.io) {
+            req.io.emit('event_list_updated');
+            console.log('--- Socket.IO: Emitted event_list_updated (FINALIZE) ---');
+        }
+
+        res.json(finalizedEvent);
+    } catch (error) {
+        console.error('Error finalizing event:', error);
+        res.status(500).json({ message: 'Failed to finalize event.' });
+    }
+});
+
+/**
  * @route   DELETE /api/events/:id
  * @desc    Delete an event (ADMIN)
  * @access  Private
  */
-router.delete('/:id', async (req, res) => { // ✅ FIX: Route path is '/:id'
+router.delete('/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
@@ -219,7 +269,7 @@ router.delete('/:id', async (req, res) => { // ✅ FIX: Route path is '/:id'
             return res.status(404).json({ message: 'Event not found.' });
         }
         
-        // 🚀 CRITICAL FIX: Emit WebSocket event to all clients
+        // 🚀 CRITICAL: Emit WebSocket event to all clients
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (DELETE) ---');
@@ -237,7 +287,7 @@ router.delete('/:id', async (req, res) => { // ✅ FIX: Route path is '/:id'
  * @desc    Update archive links (media links) for a past event (ADMIN)
  * @access  Private
  */
-router.put('/archive/:id', async (req, res) => { // ✅ FIX: Route path is '/archive/:id'
+router.put('/archive/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
@@ -269,11 +319,7 @@ router.put('/archive/:id', async (req, res) => { // ✅ FIX: Route path is '/arc
 });
 
 
-/**
- * @route   GET /api/admin/registered-events
- * @desc    Get a list of unique events that have successful registrations
- * @access  Private/Admin
- */
+// --- Admin Registration Data Routes (kept as original) ---
 router.get('/admin/registered-events', async (req, res) => {
     try {
         const registeredEvents = await RegistrationPayment.aggregate([
@@ -303,11 +349,6 @@ router.get('/admin/registered-events', async (req, res) => {
     }
 });
 
-/**
- * @route   GET /api/admin/registrations/:eventId
- * @desc    Get all successful registrations for a specific event (ADMIN)
- * @access  Private/Admin
- */
 router.get('/admin/registrations/:eventId', async (req, res) => {
     // NOTE: Apply authentication middleware here
     try {
