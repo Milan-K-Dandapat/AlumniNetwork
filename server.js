@@ -103,6 +103,7 @@ import authRoutes from './routes/authRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import galleryRoutes from './routes/galleryRoutes.js';
 import contactRoutes from './routes/contact.route.js';
+import projectRoutes from './routes/projectRoutes.js'; // 👈 ADDED IMPORT FOR PROJECT ROUTES
 
 if (!process.env.JWT_SECRET) {
     console.error('FATAL ERROR: JWT_SECRET is not defined.');
@@ -116,6 +117,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/projects', projectRoutes); // 👈 CRITICAL FIX: MOUNT PROJECT ROUTES
 // ---------------
 
 app.get('/api/alumni', async (req, res) => {

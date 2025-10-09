@@ -157,10 +157,10 @@ router.post('/events', async (req, res) => {
         const newEvent = new Event(req.body);
         await newEvent.save();
 
-        // 👇 CRITICAL FIX: Emit a global WebSocket event
+        // 🚀 CRITICAL FIX: Emit WebSocket event to all clients
         if (req.io) {
-            req.io.emit('event_list_updated', { message: `New event ${newEvent.title} created.` });
-            console.log('--- Socket.IO: Emitted event_list_updated ---');
+            req.io.emit('event_list_updated');
+            console.log('--- Socket.IO: Emitted event_list_updated (POST) ---');
         }
         
         res.status(201).json(newEvent);
@@ -171,44 +171,134 @@ router.post('/events', async (req, res) => {
 });
 
 /**
+ * @route   PUT /api/events/:id
+ * @desc    Update an existing event (ADMIN)
+ * @access  Private
+ */
+router.put('/events/:id', async (req, res) => {
+    // NOTE: Apply authentication middleware here
+    try {
+        // Use findByIdAndUpdate and retrieve the MongoDB _id from the URL params
+        const eventId = req.params.id; 
+        
+        const updatedEvent = await Event.findByIdAndUpdate(
+            eventId, 
+            req.body, 
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedEvent) {
+            return res.status(404).json({ message: 'Event not found.' });
+        }
+        
+        // 🚀 CRITICAL FIX: Emit WebSocket event to all clients
+        if (req.io) {
+            req.io.emit('event_list_updated');
+            console.log('--- Socket.IO: Emitted event_list_updated (PUT) ---');
+        }
+
+        res.json(updatedEvent);
+    } catch (error) {
+        console.error('Error updating event:', error);
+        res.status(500).json({ message: 'Failed to update event.' });
+    }
+});
+
+/**
+ * @route   DELETE /api/events/:id
+ * @desc    Delete an event (ADMIN)
+ * @access  Private
+ */
+router.delete('/events/:id', async (req, res) => {
+    // NOTE: Apply authentication middleware here
+    try {
+        const eventId = req.params.id; 
+        const result = await Event.findByIdAndDelete(eventId);
+
+        if (!result) {
+            return res.status(404).json({ message: 'Event not found.' });
+        }
+        
+        // 🚀 CRITICAL FIX: Emit WebSocket event to all clients
+        if (req.io) {
+            req.io.emit('event_list_updated');
+            console.log('--- Socket.IO: Emitted event_list_updated (DELETE) ---');
+        }
+
+        res.json({ message: 'Event deleted successfully.' });
+    } catch (error) {
+        console.error('Error deleting event:', error);
+        res.status(500).json({ message: 'Failed to delete event.' });
+    }
+});
+
+/**
+ * @route   PUT /api/events/archive/:id
+ * @desc    Update archive links (media links) for a past event (ADMIN)
+ * @access  Private
+ */
+router.put('/events/archive/:id', async (req, res) => {
+    // NOTE: Apply authentication middleware here
+    try {
+        const eventId = req.params.id; 
+        
+        // Only update the specific fields passed from the admin UI
+        const { title, photoLink, videoLink, resourceLink } = req.body;
+
+        const updatedArchive = await Event.findByIdAndUpdate(
+            eventId, 
+            { title, photoLink, videoLink, resourceLink }, 
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedArchive) {
+            return res.status(404).json({ message: 'Archive event not found.' });
+        }
+
+        // We assume the frontend refresh handles the archive update, 
+        // but emitting the event ensures public pages update too.
+        if (req.io) {
+            req.io.emit('event_list_updated');
+            console.log('--- Socket.IO: Emitted event_list_updated (ARCHIVE PUT) ---');
+        }
+
+        res.json(updatedArchive);
+    } catch (error) {
+        console.error('Error updating archive links:', error);
+        res.status(500).json({ message: 'Failed to update archive links.' });
+    }
+});
+
+
+/**
  * @route   GET /api/admin/registered-events
  * @desc    Get a list of unique events that have successful registrations
  * @access  Private/Admin
  */
 router.get('/admin/registered-events', async (req, res) => {
     try {
-       const registeredEvents = await RegistrationPayment.aggregate([
-    // 1. Filter only successful payments
-    { $match: { paymentStatus: 'success' } },
-    
-    // 2. Group by eventId, using $ifNull to safely handle potentially missing eventTitle
-    {
-        $group: {
-            _id: '$eventId',
-            // Use $ifNull to ensure the eventTitle is always a string, even if the field is missing
-            eventTitle: { $first: { $ifNull: [ '$eventTitle', 'Untitled Event' ] } }, 
-            count: { $sum: 1 } 
-        }
-    },
-    
-    // 3. Project the output
-    {
-        $project: {
-            _id: 0, 
-            eventId: '$_id', 
-            eventTitle: 1, 
-            count: 1 
-        }
-    },
-    
-    // 4. Sort
-    { $sort: { eventTitle: 1 } }
-]);
-
+        const registeredEvents = await RegistrationPayment.aggregate([
+            { $match: { paymentStatus: 'success' } },
+            {
+                $group: {
+                    _id: '$eventId',
+                    eventTitle: { $first: { $ifNull: [ '$eventTitle', 'Untitled Event' ] } }, 
+                    count: { $sum: 1 } 
+                }
+            },
+            {
+                $project: {
+                    _id: 0, 
+                    eventId: '$_id', 
+                    eventTitle: 1, 
+                    count: 1 
+                }
+            },
+            { $sort: { eventTitle: 1 } }
+        ]);
 
         res.json(registeredEvents);
     } catch (error) {
-        // Log the failure clearly for future debugging
         console.error('CRITICAL AGGREGATION FAILURE for registered-events:', error); 
         res.status(500).json({ message: 'Server Error: Failed to fetch registration summary.' });
     }
@@ -238,8 +328,5 @@ router.get('/admin/registrations/:eventId', async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
-
-// NOTE: The old GET /api/admin/events route is removed as it is no longer necessary 
-// for the Registration tab's purpose.
 
 export default router;
