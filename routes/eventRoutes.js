@@ -156,6 +156,13 @@ router.post('/events', async (req, res) => {
     try {
         const newEvent = new Event(req.body);
         await newEvent.save();
+
+        // 👇 CRITICAL FIX: Emit a global WebSocket event
+        if (req.io) {
+            req.io.emit('event_list_updated', { message: `New event ${newEvent.title} created.` });
+            console.log('--- Socket.IO: Emitted event_list_updated ---');
+        }
+        
         res.status(201).json(newEvent);
     } catch (error) {
         console.error('Error creating event:', error);
