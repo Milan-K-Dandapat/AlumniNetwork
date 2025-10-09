@@ -15,17 +15,16 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-// --- ✅ SECURITY FIX: Revert to using the secure environment variable ---
+// --- MONGODB CONNECTION ---
 const MONGO_URI = process.env.MONGO_URI; 
 
-// Connect to MongoDB using the secure environment variable
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected...'))
     .catch((err) => {
         console.error('❌ FATAL DB ERROR: Check MONGO_URI in .env and Render Secrets.', err);
     });
-// -------------------------------------------------------------------------
 
+// --- CLOUDINARY CONFIGURATION ---
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
     api_key: process.env.CLOUDINARY_API_KEY, 
@@ -41,26 +40,31 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // =========================================================================
-//                  ✅ CORS FIX SECTION
+//                  ✅ CORS FIX SECTION (Robust for Netlify Previews)
 // =========================================================================
 
 const ALLOWED_ORIGINS = [
-    'https://igitmcaalumni.netlify.app',
     'http://localhost:3000',
+    'https://igitmcaalumni.netlify.app',
 ];
 
-// ✅ Apply CORS middleware early
+// Regex to allow any Netlify preview domain (*.netlify.app)
+const NETLIFY_PREVIEW_REGEX = /\.netlify\.app$/;
+
+// Apply CORS middleware early with dynamic origin checking
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        if (ALLOWED_ORIGINS.includes(origin)) {
+        
+        // Check static list or dynamic Netlify preview pattern
+        if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
             callback(null, true);
         } else {
             console.error(`❌ CORS blocked for origin: ${origin}`);
             callback(new Error('Not allowed by CORS'), false);
         }
     },
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], 
     credentials: true
 }));
 
@@ -68,11 +72,18 @@ app.use(express.json());
 
 const server = http.createServer(app);
 
-// ✅ Socket.io with same CORS rules
+// Socket.io with same CORS rules
 const io = new Server(server, {
     cors: {
-        origin: ALLOWED_ORIGINS,
-        methods: ["GET", "POST", "PUT", "DELETE"],
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+            if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'), false);
+            }
+        },
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
         credentials: true
     }
 });
@@ -87,6 +98,11 @@ app.use((req, res, next) => {
 
 import Alumni from './models/Alumni.js';
 import RegistrationPayment from './models/RegistrationPayment.js'; 
+import eventRoutes from './routes/eventRoutes.js'; 
+import authRoutes from './routes/authRoutes.js';
+import profileRoutes from './routes/profileRoutes.js';
+import galleryRoutes from './routes/galleryRoutes.js';
+import contactRoutes from './routes/contact.route.js';
 
 if (!process.env.JWT_SECRET) {
     console.error('FATAL ERROR: JWT_SECRET is not defined.');
@@ -95,13 +111,9 @@ if (!process.env.JWT_SECRET) {
 console.log('JWT Secret is loaded.'); 
 
 // --- ROUTING ---
-import authRoutes from './routes/authRoutes.js';
-import profileRoutes from './routes/profileRoutes.js';
-import galleryRoutes from './routes/galleryRoutes.js';
-import contactRoutes from './routes/contact.route.js';
-
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/events', eventRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
 // ---------------
@@ -123,6 +135,8 @@ app.get('/api/total-users', async (req, res) => {
         res.status(500).json({ message: 'Server Error getting user count' });
     }
 });
+
+// --- Inlined Payment Routes (For Compatibility) ---
 
 app.post('/api/register-free-event', async (req, res) => {
     try {
@@ -231,6 +245,8 @@ app.post('/api/verify-payment', async (req, res) => {
         res.status(500).send("Internal Server Error");
     }
 });
+
+// --- End Inlined Payment Routes ---
 
 app.get('/', (req, res) => {
     res.send('Alumni Network API is running and accessible.');
