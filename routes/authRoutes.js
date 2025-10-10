@@ -6,18 +6,28 @@ import {
     login, 
     forgotPassword, 
     resetPassword,
-    // --- NEW PASSWORDLESS OTP LOGIN CONTROLLERS ---
+    // --- NEW PASSWORDLESS OTP LOGIN CONTROLLERS (EXISTING) ---
     loginOtpSend, 
-    loginOtpVerify 
+    loginOtpVerify,
+    
+    // 🚨 CRITICAL ADDITION: TEACHER/FACULTY REGISTRATION CONTROLLERS
+    sendOtpTeacher,         // You need to create this function in authController.js
+    verifyOtpAndRegisterTeacher // You need to create this function in authController.js
 } from '../controllers/authController.js';
 
 const router = express.Router();
 
 // ----------------------------------------
-// --- REGISTRATION ROUTES (Existing) ---
+// --- REGISTRATION ROUTES (STUDENT/ALUMNI) ---
 // ----------------------------------------
 router.post('/send-otp', sendOtp);
 router.post('/verify-otp', verifyOtpAndRegister);
+
+// ----------------------------------------
+// 🚨 CRITICAL ADDITION: REGISTRATION ROUTES (TEACHER/FACULTY)
+// ----------------------------------------
+router.post('/send-otp-teacher', sendOtpTeacher);
+router.post('/verify-otp-teacher', verifyOtpAndRegisterTeacher);
 
 // ----------------------------------------
 // --- TRADITIONAL LOGIN AND PASSWORD RESET ROUTES (Existing) ---

@@ -9,6 +9,9 @@ import { v2 as cloudinary } from 'cloudinary';
 import Razorpay from 'razorpay'; 
 import crypto from 'crypto'; 
 import mongoose from 'mongoose'; 
+import Alumni from './models/Alumni.js'; // Existing Alumni Model
+import Teacher from './models/Teacher.js'; // Existing Teacher Model
+import RegistrationPayment from './models/RegistrationPayment.js'; // Existing
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename); 
@@ -40,7 +43,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // =========================================================================
-//                  ✅ CORS FIX SECTION (Robust for Netlify Previews)
+//                  ✅ CORS FIX SECTION
 // =========================================================================
 
 const ALLOWED_ORIGINS = [
@@ -96,14 +99,13 @@ app.use((req, res, next) => {
 
 // =========================================================================
 
-import Alumni from './models/Alumni.js';
-import RegistrationPayment from './models/RegistrationPayment.js'; 
 import eventRoutes from './routes/eventRoutes.js'; 
 import authRoutes from './routes/authRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import galleryRoutes from './routes/galleryRoutes.js';
 import contactRoutes from './routes/contact.route.js';
-import projectRoutes from './routes/projectRoutes.js'; // 👈 ADDED IMPORT FOR PROJECT ROUTES
+import projectRoutes from './routes/projectRoutes.js'; 
+import teacherRoutes from './routes/teacherRoutes.js'; // 🚨 NEW IMPORT: Teacher Routes
 
 if (!process.env.JWT_SECRET) {
     console.error('FATAL ERROR: JWT_SECRET is not defined.');
@@ -117,9 +119,11 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
-app.use('/api/projects', projectRoutes); // 👈 CRITICAL FIX: MOUNT PROJECT ROUTES
+app.use('/api/projects', projectRoutes); 
+app.use('/api/teachers', teacherRoutes); // 🚨 CRITICAL FIX: Mount the dedicated teacher router
 // ---------------
 
+// Existing route for fetching verified ALUMNI/STUDENTS
 app.get('/api/alumni', async (req, res) => {
     try {
         const alumni = await Alumni.find({ isVerified: true }).sort({ createdAt: -1 });
@@ -129,16 +133,19 @@ app.get('/api/alumni', async (req, res) => {
     }
 });
 
+// 🚨 OPTIONAL UPDATE: Update total user count to include both models
 app.get('/api/total-users', async (req, res) => {
     try {
-        const userCount = await Alumni.countDocuments({ isVerified: true });
-        res.json({ count: userCount });
+        const alumniCount = await Alumni.countDocuments({ isVerified: true });
+        const teacherCount = await Teacher.countDocuments({ isVerified: true });
+        const totalCount = alumniCount + teacherCount;
+        res.json({ count: totalCount });
     } catch (error) {
         res.status(500).json({ message: 'Server Error getting user count' });
     }
 });
 
-// --- Inlined Payment Routes (For Compatibility) ---
+// --- Inlined Payment Routes (Unchanged for compatibility) ---
 
 app.post('/api/register-free-event', async (req, res) => {
     try {

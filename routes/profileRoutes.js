@@ -1,64 +1,79 @@
 import express from 'express';
 import auth from '../middleware/auth.js';
 import Alumni from '../models/Alumni.js';
+import Teacher from '../models/Teacher.js'; // 🚨 CRITICAL: Import the Teacher model
 
 const router = express.Router();
 
-// @route   GET /api/profile/me
-// @desc    Get current user's profile
-// @access  Private
+// --- Helper function to determine model based on data fields (Alumni has 'batch' or 'company') ---
+const determineModel = (data) => {
+    // If the data contains batch, company, or position, assume Alumni
+    if (data.batch || data.company || data.position) {
+        return Alumni;
+    }
+    // If the data contains department or designation, assume Teacher
+    if (data.department || data.designation) {
+        return Teacher;
+    }
+    return null; 
+};
+
+// --- Helper function to search for a user by ID across both models ---
+const findUserById = async (id) => {
+    let user = await Alumni.findById(id).select('-password');
+    if (user) return { model: Alumni, profile: user, type: 'alumnus' };
+    
+    user = await Teacher.findById(id).select('-password');
+    if (user) return { model: Teacher, profile: user, type: 'teacher' };
+
+    return null;
+};
+
+
+// @route   GET /api/profile/me
+// @desc    Get current user's profile (Must search both models)
+// @access  Private
 router.get('/me', auth, async (req, res) => {
     try {
-        // Fetch profile and exclude the password field
-        const profile = await Alumni.findById(req.user.id).select('-password');
-        if (!profile) {
+        const foundUser = await findUserById(req.user.id);
+        
+        if (!foundUser) {
             return res.status(404).json({ msg: 'Profile not found' });
         }
-        res.json(profile);
+        
+        // Return the profile object
+        res.json(foundUser.profile);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
     }
 });
 
-// @route   PUT /api/profile/me
-// @desc    Update current user's profile
-// @access  Private
+// @route   PUT /api/profile/me
+// @desc    Update current user's profile (Must determine and update correct model)
+// @access  Private
 router.put('/me', auth, async (req, res) => {
-    const { 
-        fullName, 
-        email, 
-        phoneNumber, 
-        batch, 
-        company, 
-        position,
-        achievements,    
-        portfolioUrl,    
-        linkedinUrl,     
-        achievementPhotos,
-        profilePictureUrl // Crucial for direct Cloudinary updates
-    } = req.body;
-
-    const profileFields = {
-        fullName, 
-        email, 
-        phoneNumber, 
-        batch, 
-        company, 
-        position,
-        achievements,
-        portfolioUrl,
-        linkedinUrl,
-        achievementPhotos,
-        profilePictureUrl 
-    };
-
+    // 1. Get the profile data and determine the target model
+    const payload = req.body;
+    let TargetModel = determineModel(payload);
+    
+    // Fallback: If model couldn't be determined by payload fields, find existing user
+    if (!TargetModel) {
+        const foundUser = await findUserById(req.user.id);
+        if (foundUser) {
+             TargetModel = foundUser.model;
+        } else {
+             return res.status(404).json({ msg: 'User profile not found. Cannot update.' });
+        }
+    }
+    
     try {
-        const updatedProfile = await Alumni.findByIdAndUpdate(
+        // 2. Update the correct model instance
+        const updatedProfile = await TargetModel.findByIdAndUpdate(
             req.user.id,
-            { $set: profileFields },
+            { $set: payload },
             { new: true, runValidators: true }
-        ).select('-password');
+        ).select('-password'); // Exclude password from the response
 
         if (!updatedProfile) {
             return res.status(404).json({ msg: 'User profile not found after update attempt' });
@@ -74,17 +89,27 @@ router.put('/me', auth, async (req, res) => {
     }
 });
 
-// @route   GET /api/profile/user/:userId
-// @desc    Get a user's public profile by their ID (The route needed for DirectoryItemPage)
-// @access  Private
+// @route   GET /api/profile/user/:userId
+// @desc    Get a user's public profile by their ID (DirectoryItemPage uses this)
+// @access  Private
 router.get('/user/:userId', auth, async (req, res) => {
     try {
-        // Find the profile and exclude sensitive data
-        const profile = await Alumni.findById(req.params.userId).select('-password -otp -otpExpires -phoneNumber -email');
+        const foundUser = await findUserById(req.params.userId);
         
-        if (!profile) {
+        if (!foundUser) {
             return res.status(404).json({ msg: 'Profile not found' });
         }
+        
+        // Remove sensitive fields based on user type (Alumni/Teacher)
+        const profile = foundUser.profile.toObject();
+        delete profile.password;
+        delete profile.otp;
+        delete profile.otpExpires;
+        
+        // For public viewing, ensure phone/email are excluded unless required
+        // We exclude these fields in DirectoryPage.js when displaying cards, 
+        // but here we only need to protect sensitive auth data. 
+        // Note: DirectoryItemPage displays email/phone, so they must remain accessible here.
         
         res.json(profile);
     } catch (err) {
