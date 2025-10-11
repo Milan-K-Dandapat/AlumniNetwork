@@ -1,11 +1,11 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose'; // 1. Use ES Module import
 
 const DonorDetailsSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true },
     phone: { type: String },
     customMessage: { type: String },
-}, { _id: false }); // We don't need a separate ID for this embedded document
+}, { _id: false });
 
 const DonationSchema = new mongoose.Schema({
     // Store the details collected from the form
@@ -26,12 +26,12 @@ const DonationSchema = new mongoose.Schema({
     razorpayOrderId: {
         type: String,
         required: true,
-        unique: true, // Order IDs should be unique
+        unique: true,
     },
     razorpayPaymentId: {
         type: String,
         required: true,
-        unique: true, // Payment IDs should be unique
+        unique: true,
     },
     razorpaySignature: {
         type: String,
@@ -41,7 +41,7 @@ const DonationSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['successful', 'failed', 'pending'],
-        default: 'successful', // We only save successful payments, but good practice to include
+        default: 'successful',
     },
     paidAt: {
         type: Date,
@@ -49,4 +49,5 @@ const DonationSchema = new mongoose.Schema({
     },
 }, { timestamps: true });
 
-module.exports = mongoose.model('Donation', DonationSchema);
+// 2. Use ES Module default export
+export default mongoose.model('Donation', DonationSchema);
