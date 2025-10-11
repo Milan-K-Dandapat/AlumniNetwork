@@ -5,21 +5,21 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http';
 import { Server } from 'socket.io';
-import { v2 as cloudinary } from 'cloudinary'; 
-import Razorpay from 'razorpay'; 
-import crypto from 'crypto'; 
-import mongoose from 'mongoose'; 
+import { v2 as cloudinary } from 'cloudinary';
+import Razorpay from 'razorpay';
+import crypto from 'crypto';
+import mongoose from 'mongoose';
 import Alumni from './models/Alumni.js'; // Existing Alumni Model
 import Teacher from './models/Teacher.js'; // Existing Teacher Model
 import RegistrationPayment from './models/RegistrationPayment.js'; // Existing
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename); 
+const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 // --- MONGODB CONNECTION ---
-const MONGO_URI = process.env.MONGO_URI; 
+const MONGO_URI = process.env.MONGO_URI;
 
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected...'))
@@ -28,10 +28,10 @@ mongoose.connect(MONGO_URI)
     });
 
 // --- CLOUDINARY CONFIGURATION ---
-cloudinary.config({ 
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
-    api_key: process.env.CLOUDINARY_API_KEY, 
-    api_secret: process.env.CLOUDINARY_API_SECRET 
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 const razorpay = new Razorpay({
@@ -43,7 +43,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // =========================================================================
-//                  ✅ CORS FIX SECTION
+//                      ✅ CORS FIX SECTION
 // =========================================================================
 
 const ALLOWED_ORIGINS = [
@@ -58,7 +58,7 @@ const NETLIFY_PREVIEW_REGEX = /\.netlify\.app$/;
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        
+
         // Check static list or dynamic Netlify preview pattern
         if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
             callback(null, true);
@@ -67,7 +67,7 @@ app.use(cors({
             callback(new Error('Not allowed by CORS'), false);
         }
     },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], 
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true
 }));
 
@@ -99,19 +99,21 @@ app.use((req, res, next) => {
 
 // =========================================================================
 
-import eventRoutes from './routes/eventRoutes.js'; 
+import eventRoutes from './routes/eventRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import galleryRoutes from './routes/galleryRoutes.js';
 import contactRoutes from './routes/contact.route.js';
-import projectRoutes from './routes/projectRoutes.js'; 
-import teacherRoutes from './routes/teacherRoutes.js'; // 🚨 NEW IMPORT: Teacher Routes
+import projectRoutes from './routes/projectRoutes.js';
+import teacherRoutes from './routes/teacherRoutes.js';
+// ✅ 1. IMPORT THE VISITOR ROUTE
+import visitorRoutes from './routes/visitors.js';
 
 if (!process.env.JWT_SECRET) {
     console.error('FATAL ERROR: JWT_SECRET is not defined.');
     process.exit(1);
 }
-console.log('JWT Secret is loaded.'); 
+console.log('JWT Secret is loaded.');
 
 // --- ROUTING ---
 app.use('/api/auth', authRoutes);
@@ -119,8 +121,10 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
-app.use('/api/projects', projectRoutes); 
-app.use('/api/teachers', teacherRoutes); // 🚨 CRITICAL FIX: Mount the dedicated teacher router
+app.use('/api/projects', projectRoutes);
+app.use('/api/teachers', teacherRoutes);
+// ✅ 2. USE THE VISITOR ROUTE
+app.use('/api/visitors', visitorRoutes);
 // ---------------
 
 // Existing route for fetching verified ALUMNI/STUDENTS
@@ -156,13 +160,13 @@ app.post('/api/register-free-event', async (req, res) => {
             razorpay_order_id: `free_event_${new Date().getTime()}`,
             paymentStatus: 'success',
         });
-        
+
         await newFreeRegistration.save();
 
-        res.status(201).json({ 
-            status: 'success', 
+        res.status(201).json({
+            status: 'success',
             message: 'Free registration successful',
-            registrationId: newFreeRegistration._id 
+            registrationId: newFreeRegistration._id
         });
 
     } catch (error) {
@@ -199,7 +203,7 @@ app.post('/api/donate/create-order', async (req, res) => {
 app.post('/api/create-order', async (req, res) => {
     try {
         const { amount, ...registrationData } = req.body;
-        
+
         const options = {
             amount: Number(amount) * 100,
             currency: "INR",
@@ -207,14 +211,14 @@ app.post('/api/create-order', async (req, res) => {
         };
 
         const order = await razorpay.orders.create(options);
-        
+
         const newPaymentRegistration = new RegistrationPayment({
             ...registrationData,
             amount,
             razorpay_order_id: order.id,
             paymentStatus: 'created',
         });
-        
+
         await newPaymentRegistration.save();
 
         res.json({ order, registrationId: newPaymentRegistration._id });
@@ -271,3 +275,4 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`)
 });
+
