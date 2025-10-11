@@ -20,12 +20,16 @@ const auth = (req, res, next) => {
         
         const token = tokenParts[1];
 
+        // Ensure getSecret() is called for the secret key
         const decoded = jwt.verify(token, getSecret());
 
+        // The decoded payload contains user information (like user ID)
         req.user = decoded; 
         
         next(); 
     } catch (err) {
+        // Log the specific error for debugging on the server side
+        console.error("JWT Verification Error:", err.message);
         res.status(401).json({ msg: 'Token is not valid' });
     }
 };
