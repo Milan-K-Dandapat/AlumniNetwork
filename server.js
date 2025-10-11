@@ -24,6 +24,12 @@ import teacherRoutes from './routes/teacherRoutes.js';
 import visitorRoutes from './routes/visitors.js';
 import donationRoutes from './routes/donationRoutes.js'; // ✅ NEW: Import Donation Routes
 
+// ⬅️ NEW IMPORTS: Career Profile and Job Models/Routes
+import CareerProfile from './models/CareerProfile.js';
+import careerProfileRoutes from './routes/careerProfileRoutes.js';
+import JobOpportunity from './models/JobOpportunity.js';
+import jobRoutes from './routes/jobRoutes.js'; 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -102,7 +108,7 @@ const io = new Server(server, {
     }
 });
 
-// Attach io to req for real-time usage
+// Attach io to req for real-time usage (REQUIRED for Job Posting)
 app.use((req, res, next) => {
     req.io = io;
     next();
@@ -125,7 +131,10 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/visitors', visitorRoutes);
-app.use('/api/donate', donationRoutes); // ✅ NEW: Use Donation Routes for all donation logic
+app.use('/api/donate', donationRoutes); 
+// ⬅️ NEW ROUTES
+app.use('/api/career-profile', careerProfileRoutes);
+app.use('/api/jobs', jobRoutes); // ⬅️ JOB BOARD ROUTES
 // ---------------
 
 // Existing route for fetching verified ALUMNI/STUDENTS
@@ -175,9 +184,6 @@ app.post('/api/register-free-event', async (req, res) => {
         res.status(500).json({ message: 'Server error during free registration.' });
     }
 });
-
-// ❌ REMOVED: The /api/donate/create-order route is now in donationRoutes.js. 
-// Defining it here would be redundant and problematic.
 
 app.post('/api/create-order', async (req, res) => {
     try {
