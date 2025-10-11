@@ -1,4 +1,4 @@
-import CareerProfile from '../models/CareerProfile';
+import CareerProfile from '../models/CareerProfile.js';
 // Assuming you have a standard authentication middleware that puts 'req.user.id' on the request object.
 
 /**
