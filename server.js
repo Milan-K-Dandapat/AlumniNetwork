@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLTopath } from 'url';
 import http from 'http';
 import { Server } from 'socket.io';
 import { v2 as cloudinary } from 'cloudinary';
@@ -12,6 +12,17 @@ import mongoose from 'mongoose';
 import Alumni from './models/Alumni.js'; // Existing Alumni Model
 import Teacher from './models/Teacher.js'; // Existing Teacher Model
 import RegistrationPayment from './models/RegistrationPayment.js'; // Existing
+import Donation from './models/Donation.js'; // ✅ NEW: Import Donation Model
+// Import Routes
+import eventRoutes from './routes/eventRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import profileRoutes from './routes/profileRoutes.js';
+import galleryRoutes from './routes/galleryRoutes.js';
+import contactRoutes from './routes/contact.route.js';
+import projectRoutes from './routes/projectRoutes.js';
+import teacherRoutes from './routes/teacherRoutes.js';
+import visitorRoutes from './routes/visitors.js';
+import donationRoutes from './routes/donationRoutes.js'; // ✅ NEW: Import Donation Routes
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,7 +54,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // =========================================================================
-//                      ✅ CORS FIX SECTION
+//                      ✅ CORS FIX SECTION
 // =========================================================================
 
 const ALLOWED_ORIGINS = [
@@ -99,16 +110,6 @@ app.use((req, res, next) => {
 
 // =========================================================================
 
-import eventRoutes from './routes/eventRoutes.js';
-import authRoutes from './routes/authRoutes.js';
-import profileRoutes from './routes/profileRoutes.js';
-import galleryRoutes from './routes/galleryRoutes.js';
-import contactRoutes from './routes/contact.route.js';
-import projectRoutes from './routes/projectRoutes.js';
-import teacherRoutes from './routes/teacherRoutes.js';
-// ✅ 1. IMPORT THE VISITOR ROUTE
-import visitorRoutes from './routes/visitors.js';
-
 if (!process.env.JWT_SECRET) {
     console.error('FATAL ERROR: JWT_SECRET is not defined.');
     process.exit(1);
@@ -123,8 +124,8 @@ app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/teachers', teacherRoutes);
-// ✅ 2. USE THE VISITOR ROUTE
 app.use('/api/visitors', visitorRoutes);
+app.use('/api/donate', donationRoutes); // ✅ NEW: Use Donation Routes
 // ---------------
 
 // Existing route for fetching verified ALUMNI/STUDENTS
@@ -137,7 +138,7 @@ app.get('/api/alumni', async (req, res) => {
     }
 });
 
-// 🚨 OPTIONAL UPDATE: Update total user count to include both models
+// OPTIONAL UPDATE: Update total user count to include both models
 app.get('/api/total-users', async (req, res) => {
     try {
         const alumniCount = await Alumni.countDocuments({ isVerified: true });
@@ -149,7 +150,7 @@ app.get('/api/total-users', async (req, res) => {
     }
 });
 
-// --- Inlined Payment Routes (Unchanged for compatibility) ---
+// --- Inlined Payment Routes ---
 
 app.post('/api/register-free-event', async (req, res) => {
     try {
@@ -175,6 +176,7 @@ app.post('/api/register-free-event', async (req, res) => {
     }
 });
 
+// This route remains for creating the Razorpay order ID (called *before* the form in the frontend)
 app.post('/api/donate/create-order', async (req, res) => {
     const { amount } = req.body;
 
@@ -199,6 +201,8 @@ app.post('/api/donate/create-order', async (req, res) => {
         res.status(500).send('Server Error');
     }
 });
+// 🚨 NOTE: The new saving route is now in routes/donationRoutes.js
+// POST /api/donate/save-donation -> Handled by donationRoutes
 
 app.post('/api/create-order', async (req, res) => {
     try {
@@ -275,4 +279,3 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`)
 });
-
