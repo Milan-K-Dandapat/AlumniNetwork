@@ -9,13 +9,25 @@ import Event from '../models/Event.js';
 const router = express.Router();
 
 // Initialize Razorpay with your credentials from environment variables
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+// 🛑 CRITICAL FIX: Add check for ENV variables to prevent server crash
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+let razorpay;
+if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
+    razorpay = new Razorpay({
+        key_id: RAZORPAY_KEY_ID,
+        key_secret: RAZORPAY_KEY_SECRET,
+    });
+} else {
+    console.warn("⚠️ RAZORPAY NOT INITIALIZED: Missing KEY_ID or KEY_SECRET. Payment routes will fail.");
+    // Mocking object to prevent server crash during module loading
+    razorpay = { orders: { create: async () => { throw new Error("Razorpay not configured."); } } };
+}
 
 // Utility function to fetch and emit the user's updated event list
 const fetchAndEmitUpdatedEvents = async (io, userId) => {
+    // NOTE: This utility function requires io and a valid userId
     if (!io || !userId) return;
 
     try {
@@ -28,9 +40,17 @@ const fetchAndEmitUpdatedEvents = async (io, userId) => {
         .populate('eventId', 'title date') 
         .exec();
 
+        // Map the result to a cleaner structure that the frontend expects
+        const registeredEvents = updatedEventsList.map(reg => ({
+            id: reg.eventId?._id,
+            name: reg.eventId?.title,
+            date: reg.eventId?.date,
+            registrationDate: reg.createdAt,
+        }));
+
         // Emit the personalized event to the user's dashboard
-        io.emit(`eventsUpdated:${userId}`, updatedEventsList); 
-        console.log(`--- Socket.IO: Emitted eventsUpdated:${userId} for ${updatedEventsList.length} events ---`);
+        io.emit(`eventsUpdated:${userId}`, registeredEvents); 
+        console.log(`--- Socket.IO: Emitted eventsUpdated:${userId} for ${registeredEvents.length} events ---`);
     } catch (error) {
         console.error(`Failed to fetch/emit events for user ${userId}:`, error);
     }
@@ -41,13 +61,13 @@ const fetchAndEmitUpdatedEvents = async (io, userId) => {
 // ====================================================================
 
 /**
- * @route   POST /api/register-free-event
- * @desc    Handles registration for events with a total amount of 0
- * @access  Public
+ * @route   POST /api/register-free-event
+ * @desc    Handles registration for events with a total amount of 0
+ * @access  Public
  */
 router.post('/register-free-event', async (req, res) => {
     try {
-        const { eventId, userId } = req.body; // <-- Extract userId here
+        const { eventId, userId } = req.body; 
 
         if (!eventId || eventId === 'N/A') {
             return res.status(400).json({ message: 'A valid Event ID is required for registration.' });
@@ -75,9 +95,9 @@ router.post('/register-free-event', async (req, res) => {
 });
 
 /**
- * @route   POST /api/create-order
- * @desc    Creates a Razorpay order for paid registrations
- * @access  Public
+ * @route   POST /api/create-order
+ * @desc    Creates a Razorpay order for paid registrations
+ * @access  Public
  */
 router.post('/create-order', async (req, res) => {
     try {
@@ -99,7 +119,8 @@ router.post('/create-order', async (req, res) => {
             receipt: registration._id.toString(),
         };
 
-        const order = await razorpay.orders.create(options);
+        // NOTE: This call will fail if Razorpay is not initialized due to missing keys
+        const order = await razorpay.orders.create(options); 
 
         registration.razorpay_order_id = order.id;
         await registration.save();
@@ -116,26 +137,20 @@ router.post('/create-order', async (req, res) => {
 });
 
 /**
- * @route   POST /api/verify-payment
- * @desc    Verifies the payment signature from Razorpay after payment
- * @access  Public
+ * @route   POST /api/verify-payment
+ * @desc    Verifies the payment signature from Razorpay after payment
+ * @access  Public
  */
 router.post('/verify-payment', async (req, res) => {
     try {
-        const {
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature,
-            registrationId
-        } = req.body;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, registrationId } = req.body;
 
-        // NOTE: Retrieve registration object first to get the existing userId
         const registrationToUpdate = await RegistrationPayment.findById(registrationId);
         
         if (!registrationToUpdate) {
              return res.status(404).json({ success: false, message: 'Registration record not found.' });
         }
-
+        
         const body = razorpay_order_id + "|" + razorpay_payment_id;
         const expectedSignature = crypto
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -144,13 +159,12 @@ router.post('/verify-payment', async (req, res) => {
 
         if (expectedSignature === razorpay_signature) {
             
-            // Update the status
             registrationToUpdate.paymentStatus = 'success';
             registrationToUpdate.razorpay_payment_id = razorpay_payment_id;
             registrationToUpdate.razorpay_signature = razorpay_signature;
             await registrationToUpdate.save();
             
-            const userId = registrationToUpdate.userId; // <-- Get userId after confirming registration exists
+            const userId = registrationToUpdate.userId; 
 
             // 🚀 CRITICAL: Emit WebSocket event for Real-Time Update
             if (req.io && userId) {
@@ -172,17 +186,12 @@ router.post('/verify-payment', async (req, res) => {
 
 // NEW: Endpoint to fetch the registered events for a specific user (Required by Dashboard)
 /**
- * @route  GET /api/events/my-registrations
- * @desc   Get events registered by the authenticated user
+ * @route  GET /api/events/my-registrations
+ * @desc   Get events registered by the authenticated user
  * @access Private (Requires authentication/protection middleware)
  */
 router.get('/my-registrations', async (req, res) => {
-    // NOTE: ASSUME authentication middleware 'protect' is used before this handler
-    // If auth middleware is not used, you need to extract the userId from the body/query
-    // For production use, you should ensure `req.user` is available.
-    // For this example, we'll assume the userId is passed in the body if auth is skipped,
-    // but typically it comes from the auth token.
-    const userId = req.user?._id || req.body?.userId; // Adjust based on your auth structure
+    const userId = req.user?._id; 
 
     if (!userId) {
         return res.status(401).json({ message: 'Not authorized or User ID missing.' });
@@ -193,16 +202,15 @@ router.get('/my-registrations', async (req, res) => {
             userId: userId,
             paymentStatus: 'success'
         })
-        .populate('eventId', 'title date') // Only retrieve necessary event fields
+        .populate('eventId', 'title date')
         .sort({ createdAt: -1 });
 
-        // Map the result to a cleaner structure for the frontend
+        // The dashboard expects a clean array of event objects: [{id, name, date, ...}]
         const registeredEvents = events.map(reg => ({
             id: reg.eventId?._id,
             name: reg.eventId?.title,
             date: reg.eventId?.date,
             registrationDate: reg.createdAt,
-            // Add other relevant fields if needed
         }));
 
         res.json(registeredEvents);
@@ -214,9 +222,9 @@ router.get('/my-registrations', async (req, res) => {
 
 
 /**
- * @route   GET /api/events/upcoming
- * @desc    Get all non-archived events (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/upcoming
+ * @desc    Get all non-archived events (PUBLIC)
+ * @access  Public
  */
 router.get('/upcoming', async (req, res) => {
     try {
@@ -229,9 +237,9 @@ router.get('/upcoming', async (req, res) => {
 });
 
 /**
- * @route   GET /api/events/past  <-- 🚨 CRITICAL ADDITION
- * @desc    Get all archived events (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/past  <-- 🚨 CRITICAL ADDITION
+ * @desc    Get all archived events (PUBLIC)
+ * @access  Public
  */
 router.get('/past', async (req, res) => {
     try {
@@ -249,12 +257,12 @@ router.get('/past', async (req, res) => {
 // --- ADMIN PANEL ROUTES ---
 // ====================================================================
 
-// ... (Admin routes remain unchanged, as they don't impact user dashboard registration status) ...
+// ... (Rest of Admin routes remain unchanged) ...
 
 /**
- * @route   POST /api/events
- * @desc    Create a new event (ADMIN)
- * @access  Private
+ * @route   POST /api/events
+ * @desc    Create a new event (ADMIN)
+ * @access  Private
  */
 router.post('/', async (req, res) => {
     // NOTE: Apply authentication middleware here
@@ -276,9 +284,9 @@ router.post('/', async (req, res) => {
 });
 
 /**
- * @route   PUT /api/events/:id
- * @desc    Update an existing event (ADMIN)
- * @access  Private
+ * @route   PUT /api/events/:id
+ * @desc    Update an existing event (ADMIN)
+ * @access  Private
  */
 router.put('/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
@@ -309,9 +317,9 @@ router.put('/:id', async (req, res) => {
 });
 
 /**
- * @route   PATCH /api/events/finalize/:id  <-- 🚨 CRITICAL ADDITION (Used by AdminPage.js)
- * @desc    Move an event from Upcoming to Archived (ADMIN)
- * @access  Private
+ * @route   PATCH /api/events/finalize/:id  <-- 🚨 CRITICAL ADDITION (Used by AdminPage.js)
+ * @desc    Move an event from Upcoming to Archived (ADMIN)
+ * @access  Private
  */
 router.patch('/finalize/:id', async (req, res) => { 
     // NOTE: Apply authentication middleware here
@@ -343,9 +351,9 @@ router.patch('/finalize/:id', async (req, res) => {
 });
 
 /**
- * @route   DELETE /api/events/:id
- * @desc    Delete an event (ADMIN)
- * @access  Private
+ * @route   DELETE /api/events/:id
+ * @desc    Delete an event (ADMIN)
+ * @access  Private
  */
 router.delete('/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
@@ -371,9 +379,9 @@ router.delete('/:id', async (req, res) => {
 });
 
 /**
- * @route   PUT /api/events/archive/:id
- * @desc    Update archive links (media links) for a past event (ADMIN)
- * @access  Private
+ * @route   PUT /api/events/archive/:id
+ * @desc    Update archive links (media links) for a past event (ADMIN)
+ * @access  Private
  */
 router.put('/archive/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here

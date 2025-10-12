@@ -9,11 +9,11 @@ const DonorDetailsSchema = new mongoose.Schema({
 
 const DonationSchema = new mongoose.Schema({
     // --- CRITICAL FIX: ADDED USER ID FIELD ---
+    // This links the donation to the alumnus's dashboard via their ID.
     userId: {
         type: mongoose.Schema.Types.ObjectId,
-        // Assuming your main user collection is 'Alumni' or 'User'
-        ref: 'Alumni', 
-        required: false, // Set to false to accommodate anonymous payments if needed
+        ref: 'Alumni', // Confirmed reference to your Alumni collection
+        required: false, 
     },
     // ------------------------------------------
 
