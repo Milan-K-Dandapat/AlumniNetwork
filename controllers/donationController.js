@@ -1,5 +1,3 @@
-// controllers/donationController.js
-
 import Donation from '../models/Donation.js'; // Import the Donation model
 import Razorpay from 'razorpay'; // Import Razorpay if you want to move the order creation here
 
@@ -13,7 +11,7 @@ const razorpay = new Razorpay({
 /**
  * @desc Saves the successful donation record to MongoDB and emits the new total amount via WebSocket.
  * @route POST /api/donate/save-donation
- * @access Public (Called from frontend after successful Razorpay handler)
+ * @access Private/Public (Must be protected if user ID is expected from token)
  */
 export const saveDonation = async (req, res) => {
     // The request body comes directly from the frontend's 'saveDonationToDB' function
@@ -25,8 +23,21 @@ export const saveDonation = async (req, res) => {
         razorpaySignature 
     } = req.body;
 
-    // NOTE: ASSUMPTION: The donorDetails object contains the 'userId' field
-    const userId = donorDetails.userId; 
+    // 🛑 CRITICAL FIX: Determine userId using the most reliable source
+    // Since this endpoint MUST be called by an authenticated user for dashboard linking,
+    // we prioritize the ID from the Auth Token (req.user._id).
+    let userId = req.user && req.user._id ? req.user._id : null; 
+    
+    // Fallback: If auth token wasn't fully processed, use the ID passed from frontend
+    if (!userId && donorDetails.userId) { 
+         userId = donorDetails.userId; 
+    }
+    
+    // Safety Check: If no user ID is found after all checks, we cannot link to the dashboard.
+    if (!userId) {
+        console.warn('Donation received but NO reliable user ID found. Saving as unlinked (anonymous).');
+    }
+
 
     try {
         // 1. Check for duplicates to prevent accidental double-saves
@@ -45,17 +56,17 @@ export const saveDonation = async (req, res) => {
             razorpayOrderId,
             razorpayPaymentId,
             razorpaySignature,
-            userId: userId, // <-- Ensure userId is explicitly saved
+            userId: userId, // Save the determined userId
             paymentStatus: 'success' // Explicitly set status
         });
 
         // 3. Save to MongoDB
         await newDonation.save();
 
-        console.log(`✅ Donation of ₹${amount} saved for ${donorDetails.email}`);
+        console.log(`✅ Donation of ₹${amount} saved for ${donorDetails.email} (User ID: ${userId || 'N/A'})`);
         
         // 4. --- CRITICAL: CALCULATE NEW TOTAL AND EMIT SOCKET EVENT ---
-        if (req.io && userId) {
+        if (req.io && userId) { // Only aggregate and emit if we know the user ID
             // Aggregate the total contributions for this specific user
             const totalResult = await Donation.aggregate([ 
                 { $match: { userId: userId, paymentStatus: 'success' } },
@@ -123,21 +134,17 @@ export const createOrder = async (req, res) => {
  * @access Private (Requires protect middleware)
  */
 export const getTotalContributions = async (req, res) => {
-    // 🚨 IMPORTANT: This requires your authentication middleware to attach the user ID (req.user.id or req.user._id)
-    // Assuming req.user is attached by the 'protect' middleware
+    // Requires authentication middleware to attach the user ID (req.user._id)
     const userId = req.user._id; 
 
     try {
         const totalResult = await Donation.aggregate([
-            // Match successful donations by the authenticated user
-            { $match: { userId: userId, paymentStatus: 'success' } }, 
-            // Group and sum the amounts
+            { $match: { userId: userId, paymentStatus: 'success' } },
             { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
         ]);
 
         const totalAmount = totalResult.length > 0 ? totalResult[0].totalAmount : 0;
         
-        // Return the required structure { totalAmount: 750.50 }
         res.json({ totalAmount: totalAmount });
 
     } catch (error) {
@@ -145,3 +152,4 @@ export const getTotalContributions = async (req, res) => {
         res.status(500).json({ message: 'Server Error: Could not retrieve contribution total.' });
     }
 };
+

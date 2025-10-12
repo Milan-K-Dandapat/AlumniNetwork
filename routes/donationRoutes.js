@@ -25,9 +25,10 @@ router.post('/create-order', createOrder);
 /**
  * @route POST /api/donate/save-donation
  * @desc Saves the complete donation record to MongoDB and triggers real-time update.
- * @access Public 
+ * @access PRIVATE (CRITICAL FIX APPLIED HERE)
  */
-router.post('/save-donation', saveDonation); 
+// 🛑 FIX: The saveDonation function needs the user ID from the auth token.
+router.post('/save-donation', protect, saveDonation); 
 
 
 export default router;
