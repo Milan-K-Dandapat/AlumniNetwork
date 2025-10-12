@@ -11,7 +11,7 @@ const razorpay = new Razorpay({
 
 
 /**
- * @desc Saves the successful donation record to MongoDB.
+ * @desc Saves the successful donation record to MongoDB and emits the new total amount via WebSocket.
  * @route POST /api/donate/save-donation
  * @access Public (Called from frontend after successful Razorpay handler)
  */
@@ -25,8 +25,8 @@ export const saveDonation = async (req, res) => {
         razorpaySignature 
     } = req.body;
 
-    // NOTE: In a production app, you should perform server-side signature verification 
-    // here to ensure the payment data wasn't tampered with.
+    // NOTE: ASSUMPTION: The donorDetails object contains the 'userId' field
+    const userId = donorDetails.userId; 
 
     try {
         // 1. Check for duplicates to prevent accidental double-saves
@@ -45,6 +45,8 @@ export const saveDonation = async (req, res) => {
             razorpayOrderId,
             razorpayPaymentId,
             razorpaySignature,
+            userId: userId, // <-- Ensure userId is explicitly saved
+            paymentStatus: 'success' // Explicitly set status
         });
 
         // 3. Save to MongoDB
@@ -52,17 +54,24 @@ export const saveDonation = async (req, res) => {
 
         console.log(`✅ Donation of ₹${amount} saved for ${donorDetails.email}`);
         
-        // Optional: Use socket.io to broadcast the new donation for real-time updates
-        if (req.io) {
-            req.io.emit('newDonation', { 
-                name: donorDetails.name, 
-                amount: amount,
-                message: donorDetails.customMessage,
-                date: new Date().toISOString()
-            });
-        }
+        // 4. --- CRITICAL: CALCULATE NEW TOTAL AND EMIT SOCKET EVENT ---
+        if (req.io && userId) {
+            // Aggregate the total contributions for this specific user
+            const totalResult = await Donation.aggregate([ 
+                { $match: { userId: userId, paymentStatus: 'success' } },
+                { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
+            ]);
 
-        // 4. Send success response
+            // Extract the calculated total, default to 0 if no results found
+            const newTotalAmount = totalResult.length > 0 ? totalResult[0].totalAmount : 0;
+
+            // Emit the personalized event to the user's dashboard
+            req.io.emit(`contributionUpdated:${userId}`, newTotalAmount);
+            console.log(`--- Socket.IO: Emitted contributionUpdated:${userId} with total: ${newTotalAmount} ---`);
+        }
+        // --------------------------------------------------------------------
+
+        // 5. Send success response
         res.status(201).json({ 
             message: 'Donation successfully recorded.', 
             donation: newDonation 
@@ -70,7 +79,6 @@ export const saveDonation = async (req, res) => {
 
     } catch (error) {
         console.error('❌ Error saving donation to database:', error);
-        // Log to database failure but payment was successful
         res.status(500).json({ 
             message: 'Payment recorded, but database save failed. Please contact support.', 
             error: error.message 
@@ -83,8 +91,6 @@ export const saveDonation = async (req, res) => {
  * @desc Creates a Razorpay order ID for the donation.
  * @route POST /api/donate/create-order
  * @access Public
- * * NOTE: This function is likely already in your server.js, but is included here 
- * for a complete controller structure.
  */
 export const createOrder = async (req, res) => {
     const { amount } = req.body;
@@ -108,5 +114,34 @@ export const createOrder = async (req, res) => {
     } catch (error) {
         console.error('Error creating Razorpay donation order:', error);
         res.status(500).send('Server Error');
+    }
+};
+
+/**
+ * @desc Calculates the total successful contribution amount for the authenticated user.
+ * @route GET /api/donate/my-total
+ * @access Private (Requires protect middleware)
+ */
+export const getTotalContributions = async (req, res) => {
+    // 🚨 IMPORTANT: This requires your authentication middleware to attach the user ID (req.user.id or req.user._id)
+    // Assuming req.user is attached by the 'protect' middleware
+    const userId = req.user._id; 
+
+    try {
+        const totalResult = await Donation.aggregate([
+            // Match successful donations by the authenticated user
+            { $match: { userId: userId, paymentStatus: 'success' } }, 
+            // Group and sum the amounts
+            { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
+        ]);
+
+        const totalAmount = totalResult.length > 0 ? totalResult[0].totalAmount : 0;
+        
+        // Return the required structure { totalAmount: 750.50 }
+        res.json({ totalAmount: totalAmount });
+
+    } catch (error) {
+        console.error('Error fetching total contributions:', error);
+        res.status(500).json({ message: 'Server Error: Could not retrieve contribution total.' });
     }
 };

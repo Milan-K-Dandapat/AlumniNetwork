@@ -14,6 +14,28 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
+// Utility function to fetch and emit the user's updated event list
+const fetchAndEmitUpdatedEvents = async (io, userId) => {
+    if (!io || !userId) return;
+
+    try {
+        // Fetch the user's complete updated list of SUCCESSFUL registrations
+        const updatedEventsList = await RegistrationPayment.find({ 
+            userId: userId, 
+            paymentStatus: 'success' 
+        })
+        // Assuming 'eventId' is a reference (ObjectId) to the Event model
+        .populate('eventId', 'title date') 
+        .exec();
+
+        // Emit the personalized event to the user's dashboard
+        io.emit(`eventsUpdated:${userId}`, updatedEventsList); 
+        console.log(`--- Socket.IO: Emitted eventsUpdated:${userId} for ${updatedEventsList.length} events ---`);
+    } catch (error) {
+        console.error(`Failed to fetch/emit events for user ${userId}:`, error);
+    }
+};
+
 // ====================================================================
 // --- PUBLIC FACING & PAYMENT ROUTES ---
 // ====================================================================
@@ -25,7 +47,7 @@ const razorpay = new Razorpay({
  */
 router.post('/register-free-event', async (req, res) => {
     try {
-        const { eventId } = req.body;
+        const { eventId, userId } = req.body; // <-- Extract userId here
 
         if (!eventId || eventId === 'N/A') {
             return res.status(400).json({ message: 'A valid Event ID is required for registration.' });
@@ -38,6 +60,12 @@ router.post('/register-free-event', async (req, res) => {
         });
 
         await newRegistration.save();
+
+        // 🚀 CRITICAL: Emit WebSocket event for Real-Time Update
+        if (req.io && userId) {
+            await fetchAndEmitUpdatedEvents(req.io, userId);
+        }
+        
         res.status(201).json({ message: 'Free registration successful!', data: newRegistration });
 
     } catch (error) {
@@ -101,6 +129,13 @@ router.post('/verify-payment', async (req, res) => {
             registrationId
         } = req.body;
 
+        // NOTE: Retrieve registration object first to get the existing userId
+        const registrationToUpdate = await RegistrationPayment.findById(registrationId);
+        
+        if (!registrationToUpdate) {
+             return res.status(404).json({ success: false, message: 'Registration record not found.' });
+        }
+
         const body = razorpay_order_id + "|" + razorpay_payment_id;
         const expectedSignature = crypto
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -108,21 +143,72 @@ router.post('/verify-payment', async (req, res) => {
             .digest('hex');
 
         if (expectedSignature === razorpay_signature) {
-            await RegistrationPayment.findByIdAndUpdate(registrationId, {
-                paymentStatus: 'success',
-                razorpay_payment_id,
-                razorpay_signature,
-            });
+            
+            // Update the status
+            registrationToUpdate.paymentStatus = 'success';
+            registrationToUpdate.razorpay_payment_id = razorpay_payment_id;
+            registrationToUpdate.razorpay_signature = razorpay_signature;
+            await registrationToUpdate.save();
+            
+            const userId = registrationToUpdate.userId; // <-- Get userId after confirming registration exists
+
+            // 🚀 CRITICAL: Emit WebSocket event for Real-Time Update
+            if (req.io && userId) {
+                await fetchAndEmitUpdatedEvents(req.io, userId);
+            }
+
             res.status(200).json({ success: true, message: 'Payment verified successfully.' });
         } else {
-            await RegistrationPayment.findByIdAndUpdate(registrationId, {
-                paymentStatus: 'failed',
-            });
+            // Payment failed or signature mismatch
+            registrationToUpdate.paymentStatus = 'failed';
+            await registrationToUpdate.save();
             res.status(400).json({ success: false, message: 'Payment verification failed.' });
         }
     } catch (error) {
         console.error('Error verifying payment:', error);
         res.status(500).json({ message: 'Server error during payment verification.' });
+    }
+});
+
+// NEW: Endpoint to fetch the registered events for a specific user (Required by Dashboard)
+/**
+ * @route  GET /api/events/my-registrations
+ * @desc   Get events registered by the authenticated user
+ * @access Private (Requires authentication/protection middleware)
+ */
+router.get('/my-registrations', async (req, res) => {
+    // NOTE: ASSUME authentication middleware 'protect' is used before this handler
+    // If auth middleware is not used, you need to extract the userId from the body/query
+    // For production use, you should ensure `req.user` is available.
+    // For this example, we'll assume the userId is passed in the body if auth is skipped,
+    // but typically it comes from the auth token.
+    const userId = req.user?._id || req.body?.userId; // Adjust based on your auth structure
+
+    if (!userId) {
+        return res.status(401).json({ message: 'Not authorized or User ID missing.' });
+    }
+    
+    try {
+        const events = await RegistrationPayment.find({ 
+            userId: userId,
+            paymentStatus: 'success'
+        })
+        .populate('eventId', 'title date') // Only retrieve necessary event fields
+        .sort({ createdAt: -1 });
+
+        // Map the result to a cleaner structure for the frontend
+        const registeredEvents = events.map(reg => ({
+            id: reg.eventId?._id,
+            name: reg.eventId?.title,
+            date: reg.eventId?.date,
+            registrationDate: reg.createdAt,
+            // Add other relevant fields if needed
+        }));
+
+        res.json(registeredEvents);
+    } catch (error) {
+        console.error('Error fetching user registrations:', error);
+        res.status(500).json({ message: 'Server Error fetching user registrations' });
     }
 });
 
@@ -162,6 +248,8 @@ router.get('/past', async (req, res) => {
 // ====================================================================
 // --- ADMIN PANEL ROUTES ---
 // ====================================================================
+
+// ... (Admin routes remain unchanged, as they don't impact user dashboard registration status) ...
 
 /**
  * @route   POST /api/events
