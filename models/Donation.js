@@ -1,4 +1,4 @@
-import mongoose from 'mongoose'; // 1. Use ES Module import
+import mongoose from 'mongoose';
 
 const DonorDetailsSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -8,6 +8,15 @@ const DonorDetailsSchema = new mongoose.Schema({
 }, { _id: false });
 
 const DonationSchema = new mongoose.Schema({
+    // --- CRITICAL FIX: ADDED USER ID FIELD ---
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        // Assuming your main user collection is 'Alumni' or 'User'
+        ref: 'Alumni', 
+        required: false, // Set to false to accommodate anonymous payments if needed
+    },
+    // ------------------------------------------
+
     // Store the details collected from the form
     donorDetails: {
         type: DonorDetailsSchema,
