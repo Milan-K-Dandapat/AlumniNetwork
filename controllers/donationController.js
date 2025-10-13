@@ -31,7 +31,7 @@ if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
 export const saveDonation = async (req, res) => {
     const { 
         donorDetails, 
-        amount, // This amount is a number due to frontend/Razorpay
+        amount, 
         razorpayOrderId, 
         razorpayPaymentId, 
         razorpaySignature 
@@ -74,10 +74,15 @@ export const saveDonation = async (req, res) => {
         // 4. CORE REAL-TIME FIX: Calculate new total and emit socket event
         if (req.io) { 
             const totalResult = await Donation.aggregate([ 
-                // Defensive step: Project 'amount' to a decimal/numeric type before summing
+                // 1. Match
                 { $match: { userId: userObjectId, status: 'successful' } },
-                { $project: { amount: { $toDouble: "$amount" } } }, // Ensures amount is treated as a double
-                { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
+                
+                // 🛑 CORRECTED FIX: Use $addFields to ensure the field is numeric (Double) 
+                // This is the most reliable way to handle stored string/ambiguous numeric types.
+                { $addFields: { numericAmount: { $toDouble: "$amount" } } },
+                
+                // 2. Group and Sum the *new* numeric field
+                { $group: { _id: '$userId', totalAmount: { $sum: '$numericAmount' } } }
             ]);
 
             const newTotalAmount = totalResult.length > 0 ? totalResult[0].totalAmount : 0;
@@ -144,14 +149,19 @@ export const getTotalContributions = async (req, res) => {
 
     try {
         const totalResult = await Donation.aggregate([
+            // 1. Match
             { $match: { userId: userObjectId, status: 'successful' } },
-            // Defensive step: Project 'amount' to a decimal/numeric type before summing
-            { $project: { amount: { $toDouble: "$amount" } } }, // Ensures amount is treated as a double
-            { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
+            
+            // 🛑 CORRECTED FIX: Use $addFields to ensure the field is numeric (Double) 
+            { $addFields: { numericAmount: { $toDouble: "$amount" } } }, 
+            
+            // 2. Group and Sum the *new* numeric field
+            { $group: { _id: '$userId', totalAmount: { $sum: '$numericAmount' } } }
         ]);
 
         const totalAmount = totalResult.length > 0 ? totalResult[0].totalAmount : 0;
         
+        // Return the amount. The frontend will handle formatting to fixed(2)
         res.json({ totalAmount: totalAmount });
 
     } catch (error) {
