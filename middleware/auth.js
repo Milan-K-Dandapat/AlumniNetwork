@@ -20,15 +20,20 @@ const auth = (req, res, next) => {
         
         const token = tokenParts[1];
 
-        // Ensure getSecret() is called for the secret key
         const decoded = jwt.verify(token, getSecret());
 
-        // The decoded payload contains user information (like user ID)
-        req.user = decoded; 
+        // 🛑 CRITICAL FIX: Attach the decoded ID to the expected _id property.
+        // If your JWT payload uses 'id' (most common), use decoded.id.
+        // If your JWT payload uses '_id', use decoded._id.
+        // We will assume your payload uses 'id' and map it to '_id' for Mongoose/Express consistency.
+        
+        req.user = { _id: decoded.id }; // Assuming JWT payload field is 'id'
+        
+        // If you were previously fetching the entire user object from DB (e.g., const user = await Alumni.findById(decoded.id)), 
+        // using just the ID is efficient and sufficient for your controller's needs.
         
         next(); 
     } catch (err) {
-        // Log the specific error for debugging on the server side
         console.error("JWT Verification Error:", err.message);
         res.status(401).json({ msg: 'Token is not valid' });
     }
