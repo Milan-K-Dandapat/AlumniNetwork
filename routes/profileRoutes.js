@@ -38,7 +38,7 @@ const findUserById = async (id) => {
 // @access  Private
 router.get('/me', auth, async (req, res) => {
     try {
-        // 🛑 CRITICAL FIX: Change req.user.id to req.user._id
+        // CRITICAL FIX: Ensures correct User ID access
         const foundUser = await findUserById(req.user._id); 
         
         if (!foundUser) {
@@ -63,7 +63,6 @@ router.put('/me', auth, async (req, res) => {
     
     // Fallback: If model couldn't be determined by payload fields, find existing user
     if (!TargetModel) {
-        // 🛑 CRITICAL FIX: Change req.user.id to req.user._id
         const foundUser = await findUserById(req.user._id);
         if (foundUser) {
              TargetModel = foundUser.model;
@@ -75,7 +74,6 @@ router.put('/me', auth, async (req, res) => {
     try {
         // 2. Update the correct model instance
         const updatedProfile = await TargetModel.findByIdAndUpdate(
-            // 🛑 CRITICAL FIX: Change req.user.id to req.user._id
             req.user._id, 
             { $set: payload },
             { new: true, runValidators: true }
@@ -100,19 +98,49 @@ router.put('/me', auth, async (req, res) => {
 // @access  Private
 router.get('/user/:userId', auth, async (req, res) => {
     try {
-        const foundUser = await findUserById(req.params.userId);
+        const targetUserId = req.params.userId;
+        const viewingUserId = req.user._id; // The ID of the currently logged-in user
+
+        // Find the user whose profile is being viewed
+        const foundUser = await findUserById(targetUserId);
         
         if (!foundUser) {
             return res.status(404).json({ msg: 'Profile not found' });
         }
         
-        // Remove sensitive fields based on user type (Alumni/Teacher)
-        const profile = foundUser.profile.toObject();
-        delete profile.password;
-        delete profile.otp;
-        delete profile.otpExpires;
+        const profile = foundUser.profile;
+        const TargetModel = foundUser.model;
         
-        res.json(profile);
+        // 1. Increment the profileViews count if the viewer is different from the target
+        let newViewsCount = profile.profileViews || 0;
+
+        if (targetUserId.toString() !== viewingUserId.toString()) {
+            // Increment the counter directly in the database
+            const result = await TargetModel.findByIdAndUpdate(
+                targetUserId,
+                { $inc: { profileViews: 1 } },
+                { new: true, select: 'profileViews' } // Get the newly incremented value
+            );
+
+            newViewsCount = result?.profileViews || (newViewsCount + 1);
+
+            // 2. 🚀 CRITICAL: Emit Socket.IO event to update the dashboard in real-time
+            if (req.io) {
+                // Emit the new profile view count ONLY to the user whose profile was viewed
+                req.io.emit(`profileViewed:${targetUserId.toString()}`, newViewsCount);
+                console.log(`--- Socket.IO: Emitted profileViewed:${targetUserId} with count: ${newViewsCount} ---`);
+            }
+        }
+
+        // Remove sensitive fields before sending the response
+        const sanitizedProfile = profile.toObject();
+        sanitizedProfile.profileViews = newViewsCount; // Ensure the returned profile has the latest count
+        delete sanitizedProfile.password;
+        delete sanitizedProfile.otp;
+        delete sanitizedProfile.otpExpires;
+        
+        res.json(sanitizedProfile);
+
     } catch (err) {
         console.error(err.message);
         // If the ID format is invalid (e.g., not a valid MongoDB ID), this catches it
