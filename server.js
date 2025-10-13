@@ -151,7 +151,7 @@ const getUpdatedContributions = async (userId) => {
     try {
         const totalResult = await Donation.aggregate([
             { $match: { userId: userObjectId, status: 'successful' } }, 
-            { $project: { amount: { $toDouble: "$amount" } } }, // Defensive check applied in controller
+            { $project: { amount: { $toDouble: "$amount" } } }, // Defensive check applied in controller
             { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
         ]);
         return totalResult.length > 0 ? totalResult[0].totalAmount : 0;
@@ -211,12 +211,10 @@ app.get('/api/total-users', async (req, res) => {
 app.post('/api/register-free-event', async (req, res) => {
     try {
         const registrationData = req.body;
-        // 🛑 FIX 1: Use the user ID from the authentication token (more reliable)
-        const userId = req.user?._id || registrationData.userId; 
+        const userId = registrationData.userId; 
 
         const newFreeRegistration = new RegistrationPayment({
             ...registrationData,
-            userId, // Ensure registration uses the retrieved user ID
             razorpay_order_id: `free_event_${new Date().getTime()}`,
             paymentStatus: 'success',
         });
@@ -226,8 +224,7 @@ app.post('/api/register-free-event', async (req, res) => {
         // 🚀 CRITICAL: Emit WebSocket event for free registration
         if (req.io && userId) {
             const updatedEventsList = await getUpdatedEvents(userId);
-            // 🛑 FIX 2: Ensure userId is a string when emitting
-            req.io.emit(`eventsUpdated:${userId.toString()}`, updatedEventsList);
+            req.io.emit(`eventsUpdated:${userId}`, updatedEventsList);
             console.log(`--- Socket.IO: Emitted eventsUpdated:${userId} (Free Reg) ---`);
         }
         // ----------------------------------------------------
@@ -255,7 +252,7 @@ app.post('/api/create-order', async (req, res) => {
         };
 
         const order = await razorpay.orders.create(options);
-        // Assuming registrationData contains the user ID, or it is extracted via middleware
+
         const newPaymentRegistration = new RegistrationPayment({
             ...registrationData,
             amount,
@@ -300,8 +297,7 @@ app.post('/api/verify-payment', async (req, res) => {
             if (req.io && updatedRegistration && updatedRegistration.userId) {
                 const userId = updatedRegistration.userId; 
                 const updatedEventsList = await getUpdatedEvents(userId);
-                // 🛑 FIX 3: Ensure userId is a string when emitting
-                req.io.emit(`eventsUpdated:${userId.toString()}`, updatedEventsList);
+                req.io.emit(`eventsUpdated:${userId}`, updatedEventsList);
                 console.log(`--- Socket.IO: Emitted eventsUpdated:${userId} (Paid Reg) ---`);
             }
             // ----------------------------------------------------
