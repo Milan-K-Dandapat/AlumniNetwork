@@ -22,7 +22,7 @@ import contactRoutes from './routes/contact.route.js';
 import projectRoutes from './routes/projectRoutes.js';
 import teacherRoutes from './routes/teacherRoutes.js';
 import visitorRoutes from './routes/visitors.js';
-import donationRoutes from './routes/donationRoutes.js'; // ✅ Import Donation Routes
+import donationRoutes from './routes/donationRoutes.js'; 
 
 // ⬅️ NEW IMPORTS: Career Profile and Job Models/Routes
 import CareerProfile from './models/CareerProfile.js';
@@ -106,8 +106,7 @@ const io = new Server(server, {
     }
 });
 
-// ✅ CORRECT: Attach io to req for real-time usage in controllers
-// This middleware runs for ALL subsequent requests.
+// ✅ Attach io to req for real-time usage in controllers
 app.use((req, res, next) => {
     req.io = io;
     next();
@@ -119,7 +118,6 @@ app.use((req, res, next) => {
 
 // Helper 1: For Event Registration Updates
 const getUpdatedEvents = async (userId) => {
-    // Logic remains the same...
     try {
         const registrations = await RegistrationPayment.find({ 
             userId: userId, 
@@ -145,17 +143,15 @@ const getUpdatedEvents = async (userId) => {
     }
 };
 
-// Helper 2: For Total Contribution Updates (Added for structure, though logic is in controller)
+// Helper 2: For Total Contribution Updates 
 const getUpdatedContributions = async (userId) => {
-    // This logic is mostly handled in donationController.js/saveDonation, 
-    // but defining it here maintains the pattern for future use.
     if (!mongoose.Types.ObjectId.isValid(userId)) return 0;
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
     try {
         const totalResult = await Donation.aggregate([
-            // Ensure status is 'successful' matching the model
             { $match: { userId: userObjectId, status: 'successful' } }, 
+            { $project: { amount: { $toDouble: "$amount" } } }, // Defensive check applied in controller
             { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
         ]);
         return totalResult.length > 0 ? totalResult[0].totalAmount : 0;
@@ -174,11 +170,6 @@ if (!process.env.JWT_SECRET) {
 console.log('JWT Secret is loaded.');
 
 // --- ROUTING ---
-// 🛑 CRITICAL FIX APPLIED HERE: The app.use('/api/donate', donationRoutes)
-// MUST be placed AFTER the app.use((req, res, next) => { req.io = io; next(); }); 
-// which is already correctly positioned above.
-// The code you provided was correct in its current placement!
-
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/events', eventRoutes);
@@ -187,7 +178,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/visitors', visitorRoutes);
-app.use('/api/donate', donationRoutes); // This now correctly uses the req.io injected above
+app.use('/api/donate', donationRoutes); 
 // ⬅️ NEW ROUTES
 app.use('/api/career-profile', careerProfileRoutes);
 app.use('/api/jobs', jobRoutes); 

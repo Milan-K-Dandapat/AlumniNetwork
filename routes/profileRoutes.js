@@ -1,7 +1,7 @@
 import express from 'express';
 import auth from '../middleware/auth.js';
 import Alumni from '../models/Alumni.js';
-import Teacher from '../models/Teacher.js'; // 🚨 CRITICAL: Import the Teacher model
+import Teacher from '../models/Teacher.js'; 
 
 const router = express.Router();
 
@@ -20,6 +20,9 @@ const determineModel = (data) => {
 
 // --- Helper function to search for a user by ID across both models ---
 const findUserById = async (id) => {
+    // Check for null/undefined ID before query (important for robustness)
+    if (!id) return null;
+    
     let user = await Alumni.findById(id).select('-password');
     if (user) return { model: Alumni, profile: user, type: 'alumnus' };
     
@@ -35,7 +38,8 @@ const findUserById = async (id) => {
 // @access  Private
 router.get('/me', auth, async (req, res) => {
     try {
-        const foundUser = await findUserById(req.user.id);
+        // 🛑 CRITICAL FIX: Change req.user.id to req.user._id
+        const foundUser = await findUserById(req.user._id); 
         
         if (!foundUser) {
             return res.status(404).json({ msg: 'Profile not found' });
@@ -59,7 +63,8 @@ router.put('/me', auth, async (req, res) => {
     
     // Fallback: If model couldn't be determined by payload fields, find existing user
     if (!TargetModel) {
-        const foundUser = await findUserById(req.user.id);
+        // 🛑 CRITICAL FIX: Change req.user.id to req.user._id
+        const foundUser = await findUserById(req.user._id);
         if (foundUser) {
              TargetModel = foundUser.model;
         } else {
@@ -70,7 +75,8 @@ router.put('/me', auth, async (req, res) => {
     try {
         // 2. Update the correct model instance
         const updatedProfile = await TargetModel.findByIdAndUpdate(
-            req.user.id,
+            // 🛑 CRITICAL FIX: Change req.user.id to req.user._id
+            req.user._id, 
             { $set: payload },
             { new: true, runValidators: true }
         ).select('-password'); // Exclude password from the response
@@ -105,11 +111,6 @@ router.get('/user/:userId', auth, async (req, res) => {
         delete profile.password;
         delete profile.otp;
         delete profile.otpExpires;
-        
-        // For public viewing, ensure phone/email are excluded unless required
-        // We exclude these fields in DirectoryPage.js when displaying cards, 
-        // but here we only need to protect sensitive auth data. 
-        // Note: DirectoryItemPage displays email/phone, so they must remain accessible here.
         
         res.json(profile);
     } catch (err) {
