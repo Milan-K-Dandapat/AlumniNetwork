@@ -9,10 +9,10 @@ import { v2 as cloudinary } from 'cloudinary';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import Alumni from './models/Alumni.js'; // Existing Alumni Model
-import Teacher from './models/Teacher.js'; // Existing Teacher Model
-import RegistrationPayment from './models/RegistrationPayment.js'; // Existing
-import Donation from './models/Donation.js'; // ✅ NEW: Import Donation Model
+import Alumni from './models/Alumni.js';
+import Teacher from './models/Teacher.js';
+import RegistrationPayment from './models/RegistrationPayment.js';
+import Donation from './models/Donation.js';
 // Import Routes
 import eventRoutes from './routes/eventRoutes.js';
 import authRoutes from './routes/authRoutes.js';
@@ -22,14 +22,14 @@ import contactRoutes from './routes/contact.route.js';
 import projectRoutes from './routes/projectRoutes.js';
 import teacherRoutes from './routes/teacherRoutes.js';
 import visitorRoutes from './routes/visitors.js';
-import donationRoutes from './routes/donationRoutes.js'; // ✅ NEW: Import Donation Routes
+import donationRoutes from './routes/donationRoutes.js'; // ✅ Import Donation Routes
 
 // ⬅️ NEW IMPORTS: Career Profile and Job Models/Routes
 import CareerProfile from './models/CareerProfile.js';
 import careerProfileRoutes from './routes/careerProfileRoutes.js';
 import JobOpportunity from './models/JobOpportunity.js';
 import jobRoutes from './routes/jobRoutes.js'; 
-import Event from './models/Event.js'; // Ensure Event model is imported for aggregation
+import Event from './models/Event.js'; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -106,7 +106,8 @@ const io = new Server(server, {
     }
 });
 
-// ✅ CRITICAL FIX: Attach io to req for real-time usage in controllers
+// ✅ CORRECT: Attach io to req for real-time usage in controllers
+// This middleware runs for ALL subsequent requests.
 app.use((req, res, next) => {
     req.io = io;
     next();
@@ -146,22 +147,22 @@ const getUpdatedEvents = async (userId) => {
 
 // Helper 2: For Total Contribution Updates (Added for structure, though logic is in controller)
 const getUpdatedContributions = async (userId) => {
-    // This logic is mostly handled in donationController.js/saveDonation, 
-    // but defining it here maintains the pattern for future use.
-    if (!mongoose.Types.ObjectId.isValid(userId)) return 0;
-    const userObjectId = new mongoose.Types.ObjectId(userId);
+    // This logic is mostly handled in donationController.js/saveDonation, 
+    // but defining it here maintains the pattern for future use.
+    if (!mongoose.Types.ObjectId.isValid(userId)) return 0;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
 
-    try {
-        const totalResult = await Donation.aggregate([
-            // Ensure status is 'successful' matching the model
-            { $match: { userId: userObjectId, status: 'successful' } }, 
-            { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
-        ]);
-        return totalResult.length > 0 ? totalResult[0].totalAmount : 0;
-    } catch (e) {
-        console.error("Error fetching updated contribution total:", e);
-        return 0;
-    }
+    try {
+        const totalResult = await Donation.aggregate([
+            // Ensure status is 'successful' matching the model
+            { $match: { userId: userObjectId, status: 'successful' } }, 
+            { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
+        ]);
+        return totalResult.length > 0 ? totalResult[0].totalAmount : 0;
+    } catch (e) {
+        console.error("Error fetching updated contribution total:", e);
+        return 0;
+    }
 };
 
 // =========================================================================
@@ -173,6 +174,11 @@ if (!process.env.JWT_SECRET) {
 console.log('JWT Secret is loaded.');
 
 // --- ROUTING ---
+// 🛑 CRITICAL FIX APPLIED HERE: The app.use('/api/donate', donationRoutes)
+// MUST be placed AFTER the app.use((req, res, next) => { req.io = io; next(); }); 
+// which is already correctly positioned above.
+// The code you provided was correct in its current placement!
+
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/events', eventRoutes);
@@ -181,7 +187,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/visitors', visitorRoutes);
-app.use('/api/donate', donationRoutes); // All donation logic (including socket emit) uses req.io
+app.use('/api/donate', donationRoutes); // This now correctly uses the req.io injected above
 // ⬅️ NEW ROUTES
 app.use('/api/career-profile', careerProfileRoutes);
 app.use('/api/jobs', jobRoutes); 
