@@ -1,14 +1,17 @@
 // routes/careerProfileRoutes.js
 import express from 'express';
 import { saveCareerProfile } from '../controllers/careerProfileController.js';
-// Import your authentication middleware here (e.g., protect)
-// import { protect } from '../middleware/authMiddleware.js'; 
+
+// --- IMPORTANT: Import and enable your authentication middleware ---
+// I'm assuming the file is in '../middleware/authMiddleware.js' and the function is named 'protect'.
+// Please adjust the path if your file is located elsewhere.
+import { protect } from '../middleware/authMiddleware.js'; 
 
 const router = express.Router();
 
-// The frontend calls this endpoint with the completed profile data
-// NOTE: Assuming you apply a middleware named 'protect' to ensure the user is logged in
-// router.post('/save-career', protect, saveCareerProfile);
-router.post('/save-career', saveCareerProfile); 
+// This is a standard RESTful approach. 
+// When this router is used in your main server file like `app.use('/api/career-profile', careerProfileRoutes)`,
+// this route will correctly handle POST requests to `/api/career-profile`.
+router.route('/').post(protect, saveCareerProfile);
 
 export default router;

@@ -1,52 +1,51 @@
 import CareerProfile from '../models/CareerProfile.js';
-// Assuming you have a standard authentication middleware that puts 'req.user.id' on the request object.
 
 /**
- * @desc Saves or updates the user's career profile.
- * @route POST /api/profile/save-career (Used for first time submission)
- * @route PUT /api/profile/save-career (Used for editing)
- * @access Private (Requires authentication/token)
+ * @desc    Creates or updates a user's career profile.
+ * @route   POST /api/career-profile
+ * @access  Private (Requires user to be authenticated)
  */
 export const saveCareerProfile = async (req, res) => {
-    // IMPORTANT: Assuming your auth middleware populates req.user.id
-    const userId = req.user.id; 
+    // 1. Get the user ID from your authentication middleware.
+    // This ensures that users can only modify their own profile.
+    const userId = req.user?.id;
+    if (!userId) {
+        return res.status(401).json({ message: 'Not authorized. Please log in.' });
+    }
+
+    // 2. Get the full profile data from the request body.
+    // The frontend sends everything, including the resumeFile object with Base64 content.
     const profileData = req.body;
-    
-    // NOTE: In a real app, file uploads (like the resume) would need a separate 
-    // endpoint or middleware (like Multer/Cloudinary) before this controller receives the URL.
-    // Assuming profileData.resumeFileUrl is what you send after the file is uploaded.
 
     try {
-        // We use findOneAndUpdate with { upsert: true } to create the profile 
-        // if it doesn't exist (POST) or update it if it does (PUT/Edit).
+        // 3. Find the profile by userId and update it, or create it if it doesn't exist.
+        // The `...profileData` spread operator efficiently applies all fields from the form
+        // to the database document, matching the schema we defined.
         const updatedProfile = await CareerProfile.findOneAndUpdate(
-            { userId: userId },
+            { userId: userId }, // Query: find the document with this userId
+            { ...profileData, userId: userId }, // Update data: apply all new data
             { 
-                // Spread the entire payload from the frontend
-                ...profileData, 
-                userId: userId // Ensure userId is set
-            },
-            { 
-                new: true, // Return the updated document
-                upsert: true, // Create a new document if one doesn't exist
-                runValidators: true // Enforce schema validators on update
+                new: true,          // Option: return the modified document instead of the original
+                upsert: true,       // Option: create a new document if one doesn't exist
+                runValidators: true // Option: ensure our model's validation rules are checked
             }
         );
 
-        // Optional: Update the base Alumni/Teacher profile with 'hasCareerProfile: true'
-        // await Alumni.findByIdAndUpdate(userId, { hasCareerProfile: true });
-
         res.status(200).json({ 
-            message: 'Career profile saved successfully.', 
-            profile: updatedProfile 
+            success: true,
+            message: 'Career profile saved successfully!', 
+            data: updatedProfile 
         });
 
     } catch (error) {
         console.error('Error saving career profile:', error);
-        // Mongoose validation error handling
+        
+        // Handle potential validation errors from the model
         if (error.name === 'ValidationError') {
-            return res.status(400).json({ message: error.message });
+            return res.status(400).json({ success: false, message: error.message });
         }
-        res.status(500).json({ message: 'Server error during profile submission.' });
+        
+        // Handle all other server errors
+        res.status(500).json({ success: false, message: 'An unexpected server error occurred.' });
     }
 };
