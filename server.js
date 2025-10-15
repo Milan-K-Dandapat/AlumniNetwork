@@ -65,6 +65,7 @@ const PORT = process.env.PORT || 5000;
 
 const ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    `http://localhost:${PORT}`,
     'https://igitmcaalumni.netlify.app',
 ];
 
@@ -72,7 +73,7 @@ const NETLIFY_PREVIEW_REGEX = /\.netlify\.app$/;
 
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
+        if (!origin || origin === `http://localhost:${PORT}`) return callback(null, true); // Allow requests with no origin (e.g., Postman) and the server's own port
 
         if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
             callback(null, true);
