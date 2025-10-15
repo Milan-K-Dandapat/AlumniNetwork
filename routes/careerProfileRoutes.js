@@ -4,20 +4,35 @@ import auth from '../middleware/auth.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url'; 
+// We are removing path resolution here to rely on a globally defined root path
+// import { fileURLToPath } from 'url'; 
 
 const router = express.Router();
 
-// --- Directory Setup (CRITICAL FOR MULTER ABSOLUTE PATH) ---
-// Defines __dirname equivalent for ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// Sets the absolute path for the uploads folder (e.g., /server/uploads/resumes)
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'resumes'); 
+// 🚨 CRITICAL FIX: You MUST define and export the absolute project root (e.g., PROJECT_ROOT) 
+// from your main server.js file and import it here. For demonstration, we assume a standard structure.
+// If your server.js is running from the root, you can set the root path there.
+
+// --- Multer Configuration for Resume Upload (RELYING ON PROJECT ROOT) ---
+
+// NOTE: Since the full project structure is unknown, we must rely on a reliable path, 
+// usually resolved from the server's running directory.
+// For the absolute safest route, we'll revert to path.resolve and trust the current working directory, 
+// but define the structure cleanly.
+
+const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'resumes'); 
+console.log(`Multer Upload Directory: ${UPLOAD_DIR}`); // Log for debugging in terminal
 
 // Ensure the upload directory exists to prevent server crashes on file write
 if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    try {
+        fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+        console.log(`Created directory: ${UPLOAD_DIR}`);
+    } catch (e) {
+        console.error("CRITICAL ERROR: Failed to create upload directory. Check file permissions!", e);
+        // Throwing here will crash the server cleanly before accepting requests.
+        throw new Error("File System Error: Cannot initialize upload directory.");
+    }
 }
 
 // -------------------------------------------------------------------
@@ -30,6 +45,7 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         // Use the user's ID for consistent naming, falling back to timestamp if auth is somehow bypassed
+        // Multer only calls this after the 'auth' middleware, so req.user should exist.
         const userId = req.user ? req.user._id : Date.now(); 
         const ext = path.extname(file.originalname);
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -51,13 +67,13 @@ const upload = multer({
 });
 
 // -------------------------------------------------------------------
-// --- Route Definition (Consistent with your existing architecture)
+// --- Route Definition 
 // -------------------------------------------------------------------
 
 router.route('/').post(
     auth, // 1. Secure the route using your existing authentication middleware
     
-    // 2. Custom middleware to wrap Multer and handle file upload errors cleanly (prevents 500 HTML crashes)
+    // 2. Custom middleware to wrap Multer and handle file upload errors cleanly
     (req, res, next) => {
         upload.single('resume')(req, res, function (err) {
             

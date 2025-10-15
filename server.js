@@ -1,5 +1,3 @@
-// server.js
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -65,7 +63,7 @@ const PORT = process.env.PORT || 5000;
 
 const ALLOWED_ORIGINS = [
     'http://localhost:3000',
-    `http://localhost:${PORT}`, // ✅ ALLOWS SERVER'S OWN ORIGIN
+    // Remove the direct localhost:${PORT} entry here, as the check below handles it more robustly
     'https://igitmcaalumni.netlify.app',
 ];
 
@@ -73,11 +71,14 @@ const NETLIFY_PREVIEW_REGEX = /\.netlify\.app$/;
 
 app.use(cors({
     origin: (origin, callback) => {
-        // --- CRITICAL REFINEMENT ---
+        // --- CRITICAL REFINEMENT: BULLETPROOF LOCALHOST/INTERNAL CHECK ---
+        // 1. Allow if no origin (internal requests)
         if (!origin) return callback(null, true);
-        
-        // Check if the origin is the server's own port
-        if (origin === `http://localhost:${PORT}`) return callback(null, true); 
+        
+        // 2. Allow if origin starts with http://localhost (handles any local port)
+        if (origin.startsWith('http://localhost:')) {
+            return callback(null, true);
+        } 
 
         if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
             callback(null, true);
@@ -106,9 +107,10 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: (origin, callback) => {
-            // 🚨 FIX: Allow requests with no origin AND the server's own port.
-            if (!origin) return callback(null, true);
-            if (origin === `http://localhost:${PORT}`) return callback(null, true); 
+            // 🚨 FIX: Apply the same bulletproof check here
+            if (!origin || origin.startsWith('http://localhost:')) {
+                return callback(null, true);
+            }
             
             if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
                 callback(null, true);
