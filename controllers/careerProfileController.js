@@ -46,11 +46,14 @@ export const saveCareerProfile = async (req, res) => {
         } 
     }
     
-    // Combine profile data with file info and user ID
+    // --- ⭐ UPDATE: Combine profile data, emails, file info, and user ID ---
     const dataToSave = {
         ...parsedProfileData,
         ...fileInfo,
         userId: userId,
+        // Explicitly add the new email fields to ensure they are saved
+        professionalEmail: parsedProfileData.professionalEmail,
+        personalEmail: parsedProfileData.personalEmail,
     };
     
     // Clean up temporary client-side flags before saving
@@ -63,8 +66,8 @@ export const saveCareerProfile = async (req, res) => {
             { userId: userId },
             dataToSave, 
             { 
-                new: true,         // Return the updated document
-                upsert: true,      // Create if it doesn't exist
+                new: true,          // Return the updated document
+                upsert: true,       // Create if it doesn't exist
                 runValidators: true // Run Mongoose schema validation
             }
         ).lean(); 
@@ -78,7 +81,7 @@ export const saveCareerProfile = async (req, res) => {
         // Send a successful response back to the client
         res.status(200).json({ 
             success: true,
-            message: 'Career profile saved successfully and profile created!', 
+            message: 'Career profile saved successfully!', 
             data: updatedProfile 
         });
 

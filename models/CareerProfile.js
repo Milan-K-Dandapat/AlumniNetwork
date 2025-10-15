@@ -30,6 +30,17 @@ const CareerProfileSchema = new mongoose.Schema({
     currentIndustry: { type: String },
     lastJobTitle: { type: String },
     lastCompanyName: { type: String },
+
+    // --- ⭐ NEW: CONTACT INFORMATION ---
+    // For working professionals
+    professionalEmail: { 
+        type: String,
+    },
+    // For ALL users (working professionals AND students)
+    personalEmail: {
+        type: String,
+        required: true,
+    },
     
     // --- Step 3: Skills ---
     keySkills: { 
