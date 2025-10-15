@@ -73,7 +73,11 @@ const NETLIFY_PREVIEW_REGEX = /\.netlify\.app$/;
 
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || origin === `http://localhost:${PORT}`) return callback(null, true); 
+        // --- CRITICAL REFINEMENT ---
+        if (!origin) return callback(null, true);
+        
+        // Check if the origin is the server's own port
+        if (origin === `http://localhost:${PORT}`) return callback(null, true); 
 
         if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
             callback(null, true);
@@ -102,9 +106,10 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: (origin, callback) => {
-            // 🚨 FIX: Allow requests with no origin AND the server's own port.
-            if (!origin || origin === `http://localhost:${PORT}`) return callback(null, true); 
-            
+            // 🚨 FIX: Allow requests with no origin AND the server's own port.
+            if (!origin) return callback(null, true);
+            if (origin === `http://localhost:${PORT}`) return callback(null, true); 
+            
             if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
                 callback(null, true);
             } else {
