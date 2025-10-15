@@ -1,13 +1,8 @@
 import mongoose from 'mongoose';
 
-// --- NEW: A nested schema to define the structure for the uploaded resume file ---
-const ResumeFileSchema = new mongoose.Schema({
-    name: { type: String },
-    type: { type: String },
-    size: { type: Number },
-    content: { type: String }, // This will store the Base64 string from the frontend
-    uploaded: { type: Date, default: Date.now }
-});
+// --- NEW: Simplified Schema to store file *location* and *metadata* ---
+// NOTE: We don't need a separate schema, we can put these fields directly in the main schema
+// unless you have many files. Since it's only one resume, direct fields are simpler.
 
 const CareerProfileSchema = new mongoose.Schema({
     // Link to the User/Alumni who owns this profile
@@ -18,7 +13,9 @@ const CareerProfileSchema = new mongoose.Schema({
         unique: true, 
     },
     
+    // -------------------------------------------------------------------
     // --- Step 1: User Type ---
+    // -------------------------------------------------------------------
     userType: { 
         type: String, 
         enum: ['student', 'working'], 
@@ -29,7 +26,9 @@ const CareerProfileSchema = new mongoose.Schema({
         required: true 
     },
 
+    // -------------------------------------------------------------------
     // --- Step 2 (Working Professionals Specific) ---
+    // -------------------------------------------------------------------
     isCurrentlyEmployed: { type: Boolean }, 
     totalWorkExperience: { type: String },
     currentJobTitle: { type: String },
@@ -40,36 +39,61 @@ const CareerProfileSchema = new mongoose.Schema({
     lastJobTitle: { type: String },
     lastCompanyName: { type: String },
     
+    // -------------------------------------------------------------------
     // --- Step 3: Skills ---
+    // -------------------------------------------------------------------
     keySkills: { 
         type: [String],
         default: [] 
     },
     
+    // -------------------------------------------------------------------
     // --- Step 4: Education ---
+    // -------------------------------------------------------------------
     highestQualification: { type: String, required: true },
-    // MODIFIED: Renamed 'university' to 'institution' to match the form state
     institution: { type: String, required: true },
     startingYear: { type: String, required: true },
-    // MODIFIED: 'passingYear' is no longer required to match the form logic
     passingYear: { type: String }, 
     cgpa: { type: String },
 
+    // -------------------------------------------------------------------
     // --- Step 5: Preferences ---
+    // -------------------------------------------------------------------
     preferredLocations: { 
         type: [String], 
         validate: [v => v.length > 0, 'At least one preferred location is required.'],
     },
-    // REMOVED: 'preferredSalary' field is no longer in the form
 
-    // --- Step 6: Resume ---
-    resumeHeadline: { type: String, required: true },
-    // MODIFIED: Replaced old fields with a single object to store the file data
-    resumeFile: {
-        type: ResumeFileSchema,
-        default: null
+    // -------------------------------------------------------------------
+    // --- Step 6: Resume (CRITICAL FIX: Storing File Path) ---
+    // -------------------------------------------------------------------
+    resumeHeadline: { 
+        type: String, 
+        required: true 
+    },
+    
+    // NEW FIELD: Stores the local path to the uploaded PDF file (provided by Multer)
+    resumePath: { 
+        type: String,
+        default: null, // Will be 'upload_later' or the path/to/file.pdf
     },
 
+    // OPTIONAL: Stores the filename for display purposes
+    resumeFilename: {
+        type: String,
+        default: null,
+    },
+
+    // OPTIONAL: Stores the date/time the resume was uploaded
+    resumeUploadedAt: {
+        type: Date,
+        default: null,
+    }
+
 }, { timestamps: true });
+
+// CRITICAL CLEANUP: Remove the old/misconfigured sub-schema.
+// This ensures that Mongoose doesn't try to save non-existent fields.
+// The old 'resumeFile' object field is implicitly replaced by the new file-related fields.
 
 export default mongoose.model('CareerProfile', CareerProfileSchema);
