@@ -60,12 +60,12 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // =========================================================================
-//                           CORS Configuration
+//                           CORS Configuration (Main Express)
 // =========================================================================
 
 const ALLOWED_ORIGINS = [
     'http://localhost:3000',
-    `http://localhost:${PORT}`,
+    `http://localhost:${PORT}`, // ✅ ALLOWS SERVER'S OWN ORIGIN
     'https://igitmcaalumni.netlify.app',
 ];
 
@@ -73,7 +73,7 @@ const NETLIFY_PREVIEW_REGEX = /\.netlify\.app$/;
 
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || origin === `http://localhost:${PORT}`) return callback(null, true); // Allow requests with no origin (e.g., Postman) and the server's own port
+        if (!origin || origin === `http://localhost:${PORT}`) return callback(null, true); 
 
         if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
             callback(null, true);
@@ -86,28 +86,25 @@ app.use(cors({
     credentials: true
 }));
 
-// --------------------------------------------------------------------------
-// --- CRITICAL MIDDLEWARE SETUP (NO OTHER CHANGES) ---
-// --------------------------------------------------------------------------
-
-// Middleware for JSON bodies (needed for most routes)
-// Retaining '10mb' limit, though only strictly necessary if you still handle large JSON payloads
+// --- CRITICAL MIDDLEWARE SETUP ---
+// Middleware for JSON bodies 
 app.use(express.json({ limit: '10mb' }));
 
-// Middleware for URL-encoded bodies (needed for many standard form submissions)
-app.use(express.urlencoded({ extended: true })); // 👈 ADDED/CONFIRMED
-
-// --------------------------------------------------------------------------
+// Middleware for URL-encoded bodies 
+app.use(express.urlencoded({ extended: true })); 
 // --- END CRITICAL MIDDLEWARE SETUP ---
-// --------------------------------------------------------------------------
 
 const server = http.createServer(app);
 
-// Socket.io with same CORS rules
+// =========================================================================
+//                           Socket.io with CORS (CRITICAL FIX)
+// =========================================================================
 const io = new Server(server, {
     cors: {
         origin: (origin, callback) => {
-            if (!origin) return callback(null, true);
+            // 🚨 FIX: Allow requests with no origin AND the server's own port.
+            if (!origin || origin === `http://localhost:${PORT}`) return callback(null, true); 
+            
             if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
                 callback(null, true);
             } else {
@@ -164,7 +161,7 @@ const getUpdatedContributions = async (userId) => {
     try {
         const totalResult = await Donation.aggregate([
             { $match: { userId: userObjectId, status: 'successful' } }, 
-            { $project: { amount: { $toDouble: "$amount" } } }, // Defensive check applied in controller
+            { $project: { amount: { $toDouble: "$amount" } } }, 
             { $group: { _id: '$userId', totalAmount: { $sum: '$amount' } } }
         ]);
         return totalResult.length > 0 ? totalResult[0].totalAmount : 0;
