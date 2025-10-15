@@ -1,30 +1,25 @@
-// controllers/careerProfileController.js
-
 import CareerProfile from '../models/CareerProfile.js';
 
 export const saveCareerProfile = async (req, res) => {
-    // Get the user ID attached by your 'auth.js' middleware
+    // Get the user ID attached by the 'auth.js' middleware
     const userId = req.user?._id; 
     
-    // Security check: Ensure a user ID is present
+    // Security check: Ensure user is authenticated
     if (!userId) {
-        // If auth middleware didn't attach user, this is a critical failure.
-        // Also, we must ensure the `auth` middleware is working correctly.
-        return res.status(401).json({ success: false, message: 'Not authorized. User ID not found in token.' });
+        return res.status(401).json({ success: false, message: 'Not authorized. User ID not found.' });
     }
 
-    // --- CRITICAL FIX 1: Parse the JSON String from FormData ---
+    // --- CRITICAL: Parse the JSON String from FormData ---
     let parsedProfileData;
     try {
-        // req.body.profileData is the JSON string sent from the client
-        // Multer handles text fields, putting them in req.body
         if (!req.body.profileData) {
             return res.status(400).json({ success: false, message: 'Missing career profile data in request body.' });
         }
         
+        // Data from client is a JSON string due to FormData structure
         parsedProfileData = JSON.parse(req.body.profileData);
 
-        // Convert the stringified arrays back to arrays
+        // Convert the stringified arrays back to JS arrays
         if (parsedProfileData.keySkills && typeof parsedProfileData.keySkills === 'string') {
             parsedProfileData.keySkills = JSON.parse(parsedProfileData.keySkills);
         }
@@ -37,20 +32,18 @@ export const saveCareerProfile = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid format for profile data.' });
     }
 
-    // --- CRITICAL FIX 2: Handle Resume File from Multer (req.file) ---
+    // --- Handle Resume File from Multer (req.file) ---
     const fileInfo = {};
     if (req.file) {
-        // Multer successfully uploaded the file and its info is in req.file
-        fileInfo.resumePath = req.file.path; // The local path where the file is stored
+        // Multer successfully uploaded the file; save its path and metadata
+        fileInfo.resumePath = req.file.path; 
         fileInfo.resumeFilename = req.file.filename;
         fileInfo.resumeUploadedAt = new Date();
     } else {
-        // If no file was sent, check if they explicitly chose to upload later
+        // If no file was uploaded, check the 'upload later' flag
         if (parsedProfileData.uploadLater) {
-             fileInfo.resumePath = 'upload_later'; // A special value to indicate manual entry later
-        } else {
-            // For now, if no file and no 'uploadLater', we don't save a path.
-        }
+             fileInfo.resumePath = 'upload_later'; 
+        } 
     }
     
     // Combine profile data with file info and user ID
@@ -61,51 +54,44 @@ export const saveCareerProfile = async (req, res) => {
     };
     
     // Clean up temporary client-side flags before saving
-    delete dataToSave.resumeFile;   // This was the File object on the client, remove it
-    delete dataToSave.uploadLater; // This was the client flag, remove it
+    delete dataToSave.resumeFile;   
+    delete dataToSave.uploadLater; 
 
     try {
-        // Find a profile by the user's ID and update it, or create a new one (`upsert: true`).
+        // Use upsert to create or update the profile based on userId
         const updatedProfile = await CareerProfile.findOneAndUpdate(
             { userId: userId },
-            dataToSave, // Use the prepared dataToSave object
+            dataToSave, 
             { 
                 new: true,         // Return the updated document
                 upsert: true,      // Create if it doesn't exist
-                runValidators: true // Run schema validations
+                runValidators: true // Run Mongoose schema validation
             }
-        ).lean(); // Use .lean() for faster query if you don't need mongoose document methods later
+        ).lean(); 
 
-        // Ensure the profile is not null after upsert
         if (!updatedProfile) {
             return res.status(500).json({ success: false, message: 'Profile could not be created or updated.' });
         }
         
         console.log(`Profile for user ${userId} saved successfully.`);
 
-        // Send a successful response
+        // Send a successful response back to the client
         res.status(200).json({ 
             success: true,
             message: 'Career profile saved successfully and profile created!', 
-            // Return the necessary data to the client to update their state
             data: updatedProfile 
         });
 
     } catch (error) {
         console.error('Error saving career profile:', error.message);
         
-        // Handle specific validation errors from the model
+        // Handle Mongoose Validation Errors
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ success: false, message: messages.join(', ') });
         }
         
-        // Handle Multer errors (e.g., file size limit exceeded, wrong file type)
-        if (error.code === 'LIMIT_FILE_SIZE') {
-            return res.status(400).json({ success: false, message: 'File too large. Max size is 5MB.' });
-        }
-        
-        // Handle any other server-side errors
+        // Handle other server errors
         res.status(500).json({ success: false, message: 'An unexpected server error occurred.' });
     }
 };
