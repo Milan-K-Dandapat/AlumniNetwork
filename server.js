@@ -76,9 +76,9 @@ app.use(cors({
         if (!origin) return callback(null, true);
         
         // 2. Allow if origin starts with http://localhost (handles any local port)
-        if (origin.startsWith('http://localhost:')) {
-            return callback(null, true);
-        } 
+        if (origin.startsWith('http://localhost:')) {
+            return callback(null, true);
+        } 
 
         if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
             callback(null, true);
@@ -109,8 +109,8 @@ const io = new Server(server, {
         origin: (origin, callback) => {
             // 🚨 FIX: Apply the same bulletproof check here
             if (!origin || origin.startsWith('http://localhost:')) {
-                return callback(null, true);
-            }
+                return callback(null, true);
+            }
             
             if (ALLOWED_ORIGINS.includes(origin) || NETLIFY_PREVIEW_REGEX.test(origin)) {
                 callback(null, true);
@@ -177,6 +177,20 @@ const getUpdatedContributions = async (userId) => {
         return 0;
     }
 };
+// Helper 3: For Total Donation Amount (Used globally, e.g., on dashboard)
+const getTotalDonationAmount = async () => {
+    try {
+        const totalResult = await Donation.aggregate([
+            { $match: { status: 'successful' } }, 
+            { $project: { amount: { $toDouble: "$amount" } } }, 
+            { $group: { _id: null, totalAmount: { $sum: '$amount' } } }
+        ]);
+        return totalResult.length > 0 ? totalResult[0].totalAmount : 0;
+    } catch (e) {
+        console.error("Error fetching total donation amount:", e);
+        return 0;
+    }
+};
 
 // =========================================================================
 
@@ -198,7 +212,7 @@ app.use('/api/visitors', visitorRoutes);
 app.use('/api/donate', donationRoutes); 
 // ⬅️ NEW ROUTES
 app.use('/api/career-profile', careerProfileRoutes);
-app.use('/api/jobs', jobRoutes); 
+app.use('/api/jobs', jobRoutes); // ✅ ROUTE IS CORRECTLY REGISTERED
 // ---------------
 
 // Existing route for fetching verified ALUMNI/STUDENTS
@@ -289,7 +303,7 @@ app.post('/api/create-order', async (req, res) => {
 
 app.post('/api/verify-payment', async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, isDonation } = req.body; // Capture userId and isDonation flag
         const body = razorpay_order_id + "|" + razorpay_payment_id;
 
         const expectedSignature = crypto
@@ -299,29 +313,50 @@ app.post('/api/verify-payment', async (req, res) => {
 
         if (expectedSignature === razorpay_signature) {
             
-            // Find the registration using the order ID
-            const updatedRegistration = await RegistrationPayment.findOneAndUpdate(
-                { razorpay_order_id },
-                {
-                    razorpay_payment_id,
-                    razorpay_signature,
-                    paymentStatus: 'success',
-                },
-                { new: true } // Return the updated document
-            );
-
-            // 🚀 CRITICAL: Emit WebSocket event for paid registration
-            if (req.io && updatedRegistration && updatedRegistration.userId) {
-                const userId = updatedRegistration.userId; 
-                const updatedEventsList = await getUpdatedEvents(userId);
-                req.io.emit(`eventsUpdated:${userId}`, updatedEventsList);
-                console.log(`--- Socket.IO: Emitted eventsUpdated:${userId} (Paid Reg) ---`);
+            if (isDonation) {
+                // Handle Donation
+                const updatedDonation = await Donation.findOneAndUpdate(
+                    { razorpay_order_id },
+                    { razorpay_payment_id, razorpay_signature, status: 'successful' },
+                    { new: true }
+                );
+                // 🚀 Emit WebSocket event for donation totals
+                if (req.io && userId) {
+                    const totalContribution = await getUpdatedContributions(userId);
+                    const globalTotal = await getTotalDonationAmount();
+                    req.io.emit(`donationsUpdated:${userId}`, { totalContribution });
+                    req.io.emit('globalDonationTotal', { globalTotal }); 
+                    console.log(`--- Socket.IO: Emitted donationsUpdated:${userId} and globalTotal (Donation) ---`);
+                }
+            } else {
+                // Handle Event Registration
+                const updatedRegistration = await RegistrationPayment.findOneAndUpdate(
+                    { razorpay_order_id },
+                    {
+                        razorpay_payment_id,
+                        razorpay_signature,
+                        paymentStatus: 'success',
+                    },
+                    { new: true } // Return the updated document
+                );
+                
+                // 🚀 Emit WebSocket event for paid registration
+                if (req.io && updatedRegistration && updatedRegistration.userId) {
+                    const userId = updatedRegistration.userId; 
+                    const updatedEventsList = await getUpdatedEvents(userId);
+                    req.io.emit(`eventsUpdated:${userId}`, updatedEventsList);
+                    console.log(`--- Socket.IO: Emitted eventsUpdated:${userId} (Paid Reg) ---`);
+                }
             }
-            // ----------------------------------------------------
 
             res.json({ status: 'success', orderId: razorpay_order_id });
         } else {
-            await RegistrationPayment.findOneAndUpdate({ razorpay_order_id }, { paymentStatus: 'failed' });
+            // Failed payment handling (affects both registration and donation)
+            if (isDonation) {
+                await Donation.findOneAndUpdate({ razorpay_order_id }, { status: 'failed' });
+            } else {
+                await RegistrationPayment.findOneAndUpdate({ razorpay_order_id }, { paymentStatus: 'failed' });
+            }
             res.status(400).json({ status: 'failure' });
         }
     } catch (error) {
