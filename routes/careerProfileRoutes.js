@@ -1,42 +1,37 @@
 import express from 'express';
 import { saveCareerProfile } from '../controllers/careerProfileController.js';
+import { getCareerProfile } from '../controllers/getProfileController.js'; 
 import auth from '../middleware/auth.js'; 
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-// We are removing path resolution here to rely on a globally defined root path
-// import { fileURLToPath } from 'url'; 
+import { fileURLToPath } from 'url'; // For ES Module path resolution
 
 const router = express.Router();
 
-// 🚨 CRITICAL FIX: You MUST define and export the absolute project root (e.g., PROJECT_ROOT) 
-// from your main server.js file and import it here. For demonstration, we assume a standard structure.
-// If your server.js is running from the root, you can set the root path there.
+// --- Directory Setup for Multer ---
+// This robust pathing handles both local dev and Render deployment
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// --- Multer Configuration for Resume Upload (RELYING ON PROJECT ROOT) ---
+// Define the uploads directory relative to the server folder
+// Assuming structure: /project-root/server/routes/careerProfileRoutes.js
+const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'resumes');
 
-// NOTE: Since the full project structure is unknown, we must rely on a reliable path, 
-// usually resolved from the server's running directory.
-// For the absolute safest route, we'll revert to path.resolve and trust the current working directory, 
-// but define the structure cleanly.
-
-const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'resumes'); 
-console.log(`Multer Upload Directory: ${UPLOAD_DIR}`); // Log for debugging in terminal
-
-// Ensure the upload directory exists to prevent server crashes on file write
+// Ensure the upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
     try {
         fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-        console.log(`Created directory: ${UPLOAD_DIR}`);
+        console.log(`Created Multer upload directory: ${UPLOAD_DIR}`);
     } catch (e) {
         console.error("CRITICAL ERROR: Failed to create upload directory. Check file permissions!", e);
-        // Throwing here will crash the server cleanly before accepting requests.
+        // This stops the server cleanly if the path can't be created
         throw new Error("File System Error: Cannot initialize upload directory.");
     }
 }
 
 // -------------------------------------------------------------------
-// --- Multer Configuration for Resume Upload 
+// --- Multer Configuration for Resume Upload (POST Route) ---
 // -------------------------------------------------------------------
 
 const storage = multer.diskStorage({
@@ -44,8 +39,7 @@ const storage = multer.diskStorage({
         cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
-        // Use the user's ID for consistent naming, falling back to timestamp if auth is somehow bypassed
-        // Multer only calls this after the 'auth' middleware, so req.user should exist.
+        // Use the authenticated user's ID for consistent, unique naming
         const userId = req.user ? req.user._id : Date.now(); 
         const ext = path.extname(file.originalname);
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -60,38 +54,36 @@ const upload = multer({
         if (file.mimetype === 'application/pdf') {
             cb(null, true);
         } else {
-            // Throw a specific error if file type is wrong
             cb(new Error('File Type Error: Only PDF files are allowed!'), false);
         }
     }
 });
 
 // -------------------------------------------------------------------
-// --- Route Definition 
+// --- Route Definitions ---
 // -------------------------------------------------------------------
 
+// 1. GET /api/career-profile/me: Fetch the authenticated user's profile data (Persistence FIX)
+router.route('/me').get(auth, getCareerProfile); 
+
+// 2. POST /api/career-profile: Save or update the profile (Submission FIX)
 router.route('/').post(
-    auth, // 1. Secure the route using your existing authentication middleware
-    
-    // 2. Custom middleware to wrap Multer and handle file upload errors cleanly
+    auth, 
+    // Custom middleware to wrap Multer and handle file upload errors cleanly
     (req, res, next) => {
         upload.single('resume')(req, res, function (err) {
             
-            // Handle Multer-specific errors (e.g., file size limit, path errors)
             if (err instanceof multer.MulterError) {
                 return res.status(400).json({ success: false, message: `Upload Error: ${err.message}` });
             } 
-            // Handle custom errors (e.g., file type error)
             else if (err) {
                 return res.status(400).json({ success: false, message: err.message });
             }
             
-            // If Multer is successful (or no file was sent), proceed to controller
             next();
         });
     },
-    
-    saveCareerProfile // 3. Execute the controller logic
+    saveCareerProfile 
 );
 
 export default router;
