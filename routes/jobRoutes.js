@@ -1,17 +1,13 @@
-// routes/jobRoutes.js
-
 import express from 'express';
-import { getAllJobs, postJob } from '../controllers/jobController.js';
-// Import your authentication middleware (e.g., protect)
-// import { protect } from '../middleware/authMiddleware.js'; 
+import { createJobPost, getAllJobPosts } from '../controllers/jobController.js';
+import auth from '../middleware/auth.js'; 
 
 const router = express.Router();
 
-// Public route to fetch all jobs
-router.get('/get-all', getAllJobs); 
+// Route to fetch all job posts (Requires Authentication)
+router.route('/').get(auth, getAllJobPosts);
 
-// Private route to post a new job (uncomment 'protect' when ready)
-// router.post('/post', protect, postJob);
-router.post('/post', postJob); 
+// Route to create a new job post (Requires Authentication)
+router.route('/').post(auth, createJobPost);
 
 export default router;
