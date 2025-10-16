@@ -4,6 +4,7 @@ const alumniSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     phoneNumber: { type: String, required: true },
+    location: { type: String, required: true }, // <<<--- FIELD ADDED HERE
     batch: { type: Number, required: true },
     company: { type: String },
     position: { type: String },

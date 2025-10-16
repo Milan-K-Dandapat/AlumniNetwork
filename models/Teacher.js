@@ -20,6 +20,10 @@ const teacherSchema = new mongoose.Schema({
         type: String, 
         required: true 
     },
+    location: {
+        type: String,
+        required: true
+    }, // <<<--- FIELD ADDED HERE
     
     // --- TEACHER/FACULTY SPECIFIC FIELDS ---
     department: { 
