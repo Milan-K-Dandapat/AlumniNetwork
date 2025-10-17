@@ -26,6 +26,7 @@ import donationRoutes from './routes/donationRoutes.js';
 import careerProfileRoutes from './routes/careerProfileRoutes.js';
 import jobRoutes from './routes/jobRoutes.js'; 
 import Event from './models/Event.js'; 
+import statsRoutes from './routes/statsRoutes.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -213,6 +214,7 @@ app.use('/api/donate', donationRoutes);
 // ⬅️ NEW ROUTES
 app.use('/api/career-profile', careerProfileRoutes);
 app.use('/api/jobs', jobRoutes); // ✅ ROUTE IS CORRECTLY REGISTERED
+app.use('/api/stats', statsRoutes);
 // ---------------
 
 // Existing route for fetching verified ALUMNI/STUDENTS
