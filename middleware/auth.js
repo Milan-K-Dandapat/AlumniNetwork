@@ -28,24 +28,30 @@ const auth = (req, res, next) => {
         // 3. Verify the token signature
         const decoded = jwt.verify(token, getSecret());
 
-        // 4. CRITICAL FIX: Extract user ID defensively
-        // Checks for '_id' (Mongoose default) or 'id' (common JWT payload name)
+        // 4. Extract user ID (this was correct)
         const userId = decoded._id || decoded.id; 
         
-        if (!userId) {
-            // If the token is valid but doesn't contain a user ID field, stop the request.
-            throw new Error("Token payload is missing the required user ID field ('id' or '_id')."); 
+        // --- ⬇️ THIS IS THE FIX ⬇️ ---
+        // 5. Extract email from the token payload
+        const userEmail = decoded.email; 
+        // --- ⬆️ THIS IS THE FIX ⬆️ ---
+
+        if (!userId || !userEmail) { // Check for both ID and Email
+            // If the token is valid but doesn't contain required fields, stop the request.
+            throw new Error("Token payload is missing the required user ID ('id' or '_id') or email field."); 
         }
 
-        // 5. Attach the user ID to the request object for use in controllers
-        // The controller expects req.user._id
-        req.user = { _id: userId }; 
+        // --- ⬇️ THIS IS THE FIX ⬇️ ---
+        // 6. Attach BOTH id and email to the request object
+        // NOTE: We attach 'id' (no underscore) because that's what server.js now expects
+        req.user = { id: userId, email: userEmail }; 
+        // --- ⬆️ THIS IS THE FIX ⬆️ ---
         
-        // 6. Proceed to the next middleware (Multer/Controller)
+        // 7. Proceed to the next middleware
         next(); 
 
     } catch (err) {
-        // 7. FINAL FIX: Handle all JWT verification and logic errors with a clean JSON response
+        // 8. Error handling (unchanged)
         console.error("JWT Verification Error:", err.message);
         
         let errorMessage = 'Token is not valid.';
@@ -54,7 +60,7 @@ const auth = (req, res, next) => {
         } else if (err.name === 'JsonWebTokenError') {
              errorMessage = 'Invalid token signature.';
         } else {
-             // Use the detailed error message for defensive checking (e.g., "missing user ID")
+             // Use the detailed error message (e.g., "missing user ID or email")
              errorMessage = err.message; 
         }
 
