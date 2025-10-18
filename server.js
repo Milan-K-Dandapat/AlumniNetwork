@@ -37,15 +37,13 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-// --- MONGODB CONNECTION (Unchanged) ---
+// ... (Rest of configuration is unchanged) ...
 const MONGO_URI = process.env.MONGO_URI;
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected...'))
     .catch((err) => {
         console.error('❌ FATAL DB ERROR: Check MONGO_URI in .env and Render Secrets.', err);
     });
-
-// ... (Rest of Cloudinary, Razorpay, Express, CORS, Middleware, and Socket.io setup is unchanged) ...
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -101,8 +99,6 @@ app.use((req, res, next) => {
     req.io = io;
     next();
 });
-
-// --- HELPER FUNCTIONS (Unchanged, with typo fixed) ---
 const getUpdatedEvents = async (userId) => {
     try {
         const registrations = await RegistrationPayment.find({ 
@@ -179,24 +175,19 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/stats', statsRoutes);
 // ---------------
 
-// --- ADMIN VERIFICATION SETUP ---
-
-// --- ⬇️ THIS IS THE FINAL FIX (Using Email) ⬇️ ---
-// This is your Super Admin email address
+// --- ADMIN VERIFICATION SETUP (Unchanged) ---
 const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com'; 
 
 const isSuperAdmin = (req, res, next) => {
-    // Check for the email in the token (which we added in authController.js)
     if (!req.user || req.user.email !== SUPER_ADMIN_EMAIL) {
         return res.status(403).json({ message: 'Forbidden: Admin access required.' });
     }
     next();
 };
-// --- ⬆️ THIS IS THE FINAL FIX ⬆️ ---
 // ------------------------------------
 
 
-// --- CORRECTED ALUMNI ROUTE (Unchanged) ---
+// --- ALUMNI ROUTES (Unchanged) ---
 app.get('/api/alumni', auth, async (req, res) => {
     try {
         const alumni = await Alumni.find({}).sort({ createdAt: -1 }); 
@@ -206,7 +197,6 @@ app.get('/api/alumni', auth, async (req, res) => {
     }
 });
 
-// --- NEW ADMIN VERIFICATION ROUTE (Unchanged) ---
 app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
         const alumnus = await Alumni.findById(req.params.id);
@@ -230,6 +220,30 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
 });
 // ------------------------------------
 
+// --- ⬇️ NEW: TEACHER VERIFICATION ROUTE ⬇️ ---
+app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
+    try {
+        const teacher = await Teacher.findById(req.params.id);
+
+        if (!teacher) {
+            return res.status(404).json({ message: 'Teacher not found' });
+        }
+
+        teacher.isVerified = true;
+        await teacher.save();
+
+        res.json(teacher); // Send back the updated teacher data
+
+    } catch (error) {
+        console.error('Error verifying teacher:', error);
+        if (error.kind === 'ObjectId') {
+            return res.status(400).json({ message: 'Invalid Teacher ID format' });
+        }
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+// --- ⬆️ NEW: TEACHER VERIFICATION ROUTE ⬆️ ---
+
 
 // --- OTHER ROUTES (Unchanged) ---
 app.get('/api/total-users', async (req, res) => {
@@ -243,8 +257,7 @@ app.get('/api/total-users', async (req, res) => {
     }
 });
 
-// --- Payment Routes (Unchanged, with typo fixed) ---
-// ... (All payment routes are unchanged) ...
+// ... (Rest of Payment Routes and server listen are unchanged) ...
 app.post('/api/register-free-event', async (req, res) => {
     try {
         const registrationData = req.body;
