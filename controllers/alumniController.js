@@ -1,43 +1,19 @@
 import Alumni from '../models/Alumni.js';
-import auth from '../middleware/auth.js'; 
+import auth from '../middleware/auth.js'; // 👈 1. Import the auth middleware
 
-// This function now fetches ALL alumni (verified AND unverified)
-export const getAlumni = [
-  auth, 
+// This function is no longer needed in a separate controller,
+// as the logic is already in your main server.js file.
+// However, if you want to keep it separate, it should be protected like this.
+
+export const getAlumni = [ // 👈 2. Wrap the function in an array to include middleware
+  auth, // 👈 3. Add the auth middleware first
   async (req, res) => {
     try {
-      // --- THIS IS THE FIX ---
-      // We find ALL alumni by using an empty filter {}.
-      // The frontend will now receive all users.
-      const alumni = await Alumni.find({}).sort({ createdAt: -1 });
+      // Now, only authenticated users can access this list.
+      const alumni = await Alumni.find({ isVerified: true }).sort({ createdAt: -1 });
       res.status(200).json(alumni);
     } catch (error) {
       res.status(500).json({ message: 'Error fetching alumni', error });
     }
   }
 ];
-
-// This is your Super Admin verification function (it is already correct)
-export const verifyAlumni = async (req, res) => {
-  try {
-    // 1. Find the alumni profile by the ID from the URL
-    const alumni = await Alumni.findById(req.params.id);
-
-    if (!alumni) {
-      return res.status(404).json({ message: 'Alumni not found' });
-    }
-
-    // 2. Update the status
-    alumni.isVerified = true;
-
-    // 3. Save the change to the database
-    const updatedAlumni = await alumni.save();
-
-    // 4. Send the updated profile back to the frontend
-    res.status(200).json(updatedAlumni);
-
-  } catch (error) {
-    console.error('Verification Error:', error);
-    res.status(500).json({ message: 'Error verifying alumni', error });
-  }
-};
