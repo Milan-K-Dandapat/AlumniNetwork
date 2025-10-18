@@ -18,40 +18,38 @@ const auth = (req, res, next) => {
     try {
         const tokenParts = authHeader.split(' ');
         
-        // 2. Validate token format (must be "Bearer <token>")
+        // 2. Validate token format
         if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
              return res.status(401).json({ msg: 'Token format is invalid. Expected: Bearer <token>.' });
         }
         
         const token = tokenParts[1];
 
-        // 3. Verify the token signature
+        // 3. Verify the token
         const decoded = jwt.verify(token, getSecret());
 
-        // 4. Extract user ID (this was correct)
+        // 4. Extract user ID and email
         const userId = decoded._id || decoded.id; 
-        
-        // --- ⬇️ THIS IS THE FIX ⬇️ ---
-        // 5. Extract email from the token payload
         const userEmail = decoded.email; 
-        // --- ⬆️ THIS IS THE FIX ⬆️ ---
 
-        if (!userId || !userEmail) { // Check for both ID and Email
-            // If the token is valid but doesn't contain required fields, stop the request.
+        if (!userId || !userEmail) {
             throw new Error("Token payload is missing the required user ID ('id' or '_id') or email field."); 
         }
 
-        // --- ⬇️ THIS IS THE FIX ⬇️ ---
-        // 6. Attach BOTH id and email to the request object
-        // NOTE: We attach 'id' (no underscore) because that's what server.js now expects
-        req.user = { id: userId, email: userEmail }; 
-        // --- ⬆️ THIS IS THE FIX ⬆️ ---
+        // --- ⬇️ THIS IS THE FINAL FIX ⬇️ ---
+        // 5. Attach a comprehensive user object to the request.
+        // This ensures compatibility with all parts of your app:
+        // - `id`: For the new admin check in server.js
+        // - `_id`: For existing profile lookups (like /api/profile/me)
+        // - `email`: For the new admin check in server.js
+        req.user = { id: userId, _id: userId, email: userEmail }; 
+        // --- ⬆️ THIS IS THE FINAL FIX ⬆️ ---
         
-        // 7. Proceed to the next middleware
+        // 6. Proceed to the next middleware
         next(); 
 
     } catch (err) {
-        // 8. Error handling (unchanged)
+        // 7. Error handling (unchanged)
         console.error("JWT Verification Error:", err.message);
         
         let errorMessage = 'Token is not valid.';
@@ -60,7 +58,6 @@ const auth = (req, res, next) => {
         } else if (err.name === 'JsonWebTokenError') {
              errorMessage = 'Invalid token signature.';
         } else {
-             // Use the detailed error message (e.g., "missing user ID or email")
              errorMessage = err.message; 
         }
 
