@@ -10,7 +10,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import Alumni from './models/Alumni.js';
-import Teacher from './models/Teacher.js';
+import Teacher from './modelsD/Teacher.js';
 import RegistrationPayment from './models/RegistrationPayment.js';
 import Donation from './models/Donation.js';
 // Import Routes
@@ -29,7 +29,6 @@ import Event from './models/Event.js';
 import statsRoutes from './routes/statsRoutes.js';
 
 // --- AUTH MIDDLEWARE IMPORT ---
-// This path looks correct based on your file.
 import auth from './middleware/auth.js'; 
 // ---------------------------------
 
@@ -194,18 +193,22 @@ app.use('/api/stats', statsRoutes);
 // ---------------
 
 // --- ADMIN VERIFICATION SETUP ---
-const SUPER_ADMIN_ID = '60e76cba9d609b03a689ab29'; 
+const SUPER_ADMIN_ID = '60e76cba9d609b03a689ab29'; // This is your Super Admin user's _id
 
+// --- ⬇️ THIS IS THE FINAL FIX ⬇️ ---
 const isSuperAdmin = (req, res, next) => {
-    if (!req.user || req.user._id !== SUPER_ADMIN_ID) {
+    // 'req.user' is attached by the 'auth' middleware
+    // Your token signs the _id as 'id' (no underscore)
+    if (!req.user || req.user.id !== SUPER_ADMIN_ID) {
         return res.status(403).json({ message: 'Forbidden: Admin access required.' });
     }
     next();
 };
+// --- ⬆️ THIS IS THE FINAL FIX ⬆️ ---
 // ------------------------------------
 
 
-// --- CORRECTED ALUMNI ROUTE ---
+// --- CORRECTED ALUMNI ROUTE (Unchanged) ---
 // This fetches ALL alumni (verified and unverified) for the directory
 app.get('/api/alumni', auth, async (req, res) => {
     try {
@@ -216,7 +219,7 @@ app.get('/api/alumni', auth, async (req, res) => {
     }
 });
 
-// --- NEW ADMIN VERIFICATION ROUTE ---
+// --- NEW ADMIN VERIFICATION ROUTE (Unchanged) ---
 // This is the endpoint for the "Verify" button
 app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
@@ -366,7 +369,7 @@ app.post('/api/verify-payment', async (req, res) => {
             } else {
                 await RegistrationPayment.findOneAndUpdate({ razorpay_order_id }, { paymentStatus: 'failed' });
             }
-            res.status(400).json({ status: 'failure' });
+            res.status(4Two00).json({ status: 'failure' });
         }
     } catch (error) {
         console.error("Error in /api/verify-payment:", error);
