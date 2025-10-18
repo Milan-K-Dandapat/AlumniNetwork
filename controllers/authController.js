@@ -50,6 +50,11 @@ export const sendOtp = async (req, res) => {
         if (company) alumniData.company = company;
         if (position) alumniData.position = position;
 
+        // --- FIX #1: Ensure new users are created with isVerified: false ---
+        if (!alumni) {
+            alumniData.isVerified = false;
+        }
+
         if (alumni) {
             alumni.set(alumniData);
             await alumni.save();
@@ -80,7 +85,10 @@ export const verifyOtpAndRegister = async (req, res) => {
             return res.status(400).json({ message: 'Invalid or expired OTP.' });
         }
 
-        alumni.isVerified = true;
+        // --- FIX #2: THIS LINE IS NOW REMOVED ---
+        // alumni.isVerified = true;  <-- THIS WAS THE PROBLEM
+        // Now, isVerified stays 'false' until the admin approves it.
+
         alumni.otp = undefined;
         alumni.otpExpires = undefined;
         await alumni.save({ validateBeforeSave: false }); // Bypass validation for older users
@@ -125,6 +133,11 @@ export const sendOtpTeacher = async (req, res) => {
 
         const teacherData = { fullName, email, phoneNumber, location, department, designation, otp, otpExpires };
 
+        // --- FIX #3: Ensure new teachers are created with isVerified: false ---
+        if (!teacher) {
+            teacherData.isVerified = false;
+        }
+
         if (teacher) {
             teacher.set(teacherData);
             await teacher.save();
@@ -155,7 +168,9 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
             return res.status(400).json({ message: 'Invalid or expired OTP.' });
         }
 
-        teacher.isVerified = true;
+        // --- FIX #4: THIS LINE IS NOW REMOVED ---
+        // teacher.isVerified = true; <-- THIS WAS THE PROBLEM
+        
         teacher.otp = undefined;
         teacher.otpExpires = undefined;
         await teacher.save({ validateBeforeSave: false }); // Bypass validation for older users
@@ -196,14 +211,15 @@ export const loginOtpSend = async (req, res) => {
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
+        // --- FIX #5: Removed 'isVerified: true' check ---
         const user = await Alumni.findOneAndUpdate(
-            { email: identifier, isVerified: true },
+            { email: identifier }, // <-- Removed isVerified
             { $set: { otp, otpExpires } },
             { new: true }
         );
 
         if (!user) {
-            return res.status(404).json({ message: 'Student/Alumni user not found or is not verified.' });
+            return res.status(404).json({ message: 'Student/Alumni user not found.' });
         }
 
         await sendVerificationEmail(user.email, otp, 'Your Passwordless Login Code');
@@ -224,20 +240,21 @@ export const loginOtpSendTeacher = async (req, res) => {
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
+        // --- FIX #6: Removed 'isVerified: true' check ---
         const user = await Teacher.findOneAndUpdate(
-            { email: identifier, isVerified: true },
+            { email: identifier }, // <-- Removed isVerified
             { $set: { otp, otpExpires } },
             { new: true }
         );
 
         if (!user) {
-            return res.status(404).json({ message: 'Faculty user not found or is not verified.' });
+            return res.status(404).json({ message: 'Faculty user not found.' });
         }
 
         await sendVerificationEmail(user.email, otp, 'Your Faculty Login Code');
         res.status(200).json({ message: `OTP sent successfully to your registered email.` });
 
-    } catch (error) {
+   } catch (error) {
         console.error('Login OTP send error (Teacher):', error);
         res.status(500).json({ message: 'Server error. Could not send OTP.' });
     }
@@ -247,11 +264,12 @@ export const loginOtpSendTeacher = async (req, res) => {
 export const loginOtpVerify = async (req, res) => {
     const { identifier, otp } = req.body;
     try {
+        // --- FIX #7: Removed 'isVerified: true' check ---
         const query = {
             email: identifier,
             otp: otp,
             otpExpires: { $gt: Date.now() },
-            isVerified: true
+            // isVerified: true <-- Removed
         };
 
         const user = await Alumni.findOne(query);
@@ -278,11 +296,12 @@ export const loginOtpVerify = async (req, res) => {
 export const loginOtpVerifyTeacher = async (req, res) => {
     const { identifier, otp } = req.body;
     try {
+        // --- FIX #8: Removed 'isVerified: true' check ---
         const query = {
             email: identifier,
             otp: otp,
             otpExpires: { $gt: Date.now() },
-            isVerified: true
+            // isVerified: true <-- Removed
         };
 
         const user = await Teacher.findOne(query);
@@ -298,7 +317,7 @@ export const loginOtpVerifyTeacher = async (req, res) => {
             message: 'OTP verified. Login successful.',
             token,
             user: { id: user._id, email: user.email, fullName: user.fullName, userType: 'teacher' }
-        });
+       });
     } catch (error) {
         console.error('Login OTP Verify Error (Teacher):', error);
         res.status(500).json({ message: 'Server error during OTP verification.' });
@@ -315,16 +334,19 @@ export const login = async (req, res) => {
     try {
         const alumni = await Alumni.findOne({ email }).select('+password');
         if (!alumni || !alumni.password) { return res.status(400).json({ message: 'Invalid credentials.' }); }
-        if (!alumni.isVerified) { return res.status(400).json({ message: 'Account not verified.' }); }
+ 
+        // --- FIX #9: Removed 'isVerified' check ---
+        // if (!alumni.isVerified) { return res.status(400).json({ message: 'Account not verified.' }); }
+        
         const isMatch = await bcrypt.compare(password, alumni.password);
         if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
 
-        const token = jwt.sign({ id: alumni._id }, getSecret(), { expiresIn: '7d' });
+       const token = jwt.sign({ id: alumni._id }, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'Login successful.', token, user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName } });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ message: 'Server error.' });
-    }
+   }
 };
 
 export const forgotPassword = async (req, res) => {
@@ -333,16 +355,16 @@ export const forgotPassword = async (req, res) => {
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-        // ✅ FIX: Use findOneAndUpdate to prevent validation error on old accounts
+        // --- FIX #10: Removed 'isVerified: true' check ---
         let user = await Alumni.findOneAndUpdate(
-            { email, isVerified: true },
+            { email }, // <-- Removed isVerified
             { $set: { otp, otpExpires } }
         );
 
         if (!user) {
-            // Also check the Teacher collection
+            // --- FIX #11: Removed 'isVerified: true' check ---
             user = await Teacher.findOneAndUpdate(
-                { email, isVerified: true },
+                { email }, // <-- Removed isVerified
                 { $set: { otp, otpExpires } }
             );
         }
@@ -355,7 +377,7 @@ export const forgotPassword = async (req, res) => {
         // Always send a generic success message to prevent user enumeration
         res.status(200).json({ message: 'If this email is registered, a password reset OTP will be sent.' });
 
-    } catch (error) {
+   } catch (error) {
         console.error('Forgot password error:', error);
         res.status(500).json({ message: 'Server error. Could not send reset email.' });
     }
@@ -365,7 +387,7 @@ export const resetPassword = async (req, res) => {
     const { email, otp, newPassword } = req.body;
     try {
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
+       const hashedPassword = await bcrypt.hash(newPassword, salt);
 
         const update = {
             password: hashedPassword,
@@ -373,21 +395,23 @@ export const resetPassword = async (req, res) => {
             otpExpires: undefined
         };
 
+        // --- FIX #12: Removed 'isVerified: true' check ---
         let user = await Alumni.findOneAndUpdate(
-            { email, otp, otpExpires: { $gt: Date.now() }, isVerified: true },
-            update
+            { email, otp, otpExpires: { $gt: Date.now() } }, // <-- Removed isVerified
+          update
         );
 
         if (!user) {
-            user = await Teacher.findOneAndUpdate(
-                { email, otp, otpExpires: { $gt: Date.now() }, isVerified: true },
+            // --- FIX #13: Removed 'isVerified: true' check ---
+           user = await Teacher.findOneAndUpdate(
+                { email, otp, otpExpires: { $gt: Date.now() } }, // <-- Removed isVerified
                 update
             );
         }
         
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
 
-        res.status(200).json({ message: 'Password has been successfully reset. You can now log in.' });
+       res.status(200).json({ message: 'Password has been successfully reset. You can now log in.' });
     } catch (error) {
         console.error('Reset password error:', error);
         res.status(500).json({ message: 'Server error during password reset.' });
