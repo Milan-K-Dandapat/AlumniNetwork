@@ -28,9 +28,8 @@ import jobRoutes from './routes/jobRoutes.js';
 import Event from './models/Event.js'; 
 import statsRoutes from './routes/statsRoutes.js';
 
-// --- NEW AUTH MIDDLEWARE IMPORT ---
-// ⚠️ IMPORTANT: I am assuming your auth middleware is here.
-// If it's exported from 'authRoutes.js' or elsewhere, please update this path.
+// --- AUTH MIDDLEWARE IMPORT ---
+// This path looks correct based on your file.
 import auth from './middleware/auth.js'; 
 // ---------------------------------
 
@@ -39,22 +38,22 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-// --- MONGODB CONNECTION ---
+// --- MONGODB CONNECTION (Unchanged) ---
 const MONGO_URI = process.env.MONGO_URI;
-
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected...'))
     .catch((err) => {
         console.error('❌ FATAL DB ERROR: Check MONGO_URI in .env and Render Secrets.', err);
     });
 
-// --- CLOUDINARY CONFIGURATION ---
+// --- CLOUDINARY CONFIGURATION (Unchanged) ---
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// --- RAZORPAY CONFIGURATION (Unchanged) ---
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -63,10 +62,7 @@ const razorpay = new Razorpay({
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// =========================================================================
-//                       CORS Configuration (Main Express)
-// =========================================================================
-// ... (Your CORS configuration is unchanged) ...
+// --- CORS Configuration (Unchanged) ---
 const ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'https://igitmcaalumni.netlify.app',
@@ -89,17 +85,13 @@ app.use(cors({
     credentials: true
 }));
 
-// --- CRITICAL MIDDLEWARE SETUP (Unchanged) ---
+// --- MIDDLEWARE SETUP (Unchanged) ---
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true })); 
-// --- END CRITICAL MIDDLEWARE SETUP ---
 
 const server = http.createServer(app);
 
-// =========================================================================
-//                 Socket.io with CORS (CRITICAL FIX)
-// =========================================================================
-// ... (Your Socket.io configuration is unchanged) ...
+// --- Socket.io Configuration (Unchanged) ---
 const io = new Server(server, {
     cors: {
         origin: (origin, callback) => {
@@ -117,16 +109,14 @@ const io = new Server(server, {
     }
 });
 
-// ✅ Attach io to req for real-time usage in controllers
+// Attach io to req (Unchanged)
 app.use((req, res, next) => {
     req.io = io;
     next();
 });
 
-// ========================================================================
-// --- HELPER FUNCTIONS FOR SOCKET EMISSION (Unchanged) ---
-// ========================================================================
-// ... (All your helper functions: getUpdatedEvents, getUpdatedContributions, getTotalDonationAmount are unchanged) ...
+// --- HELPER FUNCTIONS (Unchanged) ---
+// ... (getUpdatedEvents, getUpdatedContributions, getTotalDonationAmount) ...
 const getUpdatedEvents = async (userId) => {
     try {
         const registrations = await RegistrationPayment.find({ 
@@ -203,13 +193,10 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/stats', statsRoutes);
 // ---------------
 
-// --- NEW: ADMIN VERIFICATION SETUP ---
-// This is the Super Admin ID from your screenshot
-const SUPER_ADMIN_ID = '60e76cba9d609b03a689ab29'; // TODO: Move to .env
+// --- ADMIN VERIFICATION SETUP ---
+const SUPER_ADMIN_ID = '60e76cba9d609b03a689ab29'; 
 
-// This is a new middleware to check if the logged-in user is the Super Admin
 const isSuperAdmin = (req, res, next) => {
-    // 'req.user' is attached by the 'auth' middleware
     if (!req.user || req.user._id !== SUPER_ADMIN_ID) {
         return res.status(403).json({ message: 'Forbidden: Admin access required.' });
     }
@@ -218,12 +205,10 @@ const isSuperAdmin = (req, res, next) => {
 // ------------------------------------
 
 
-// --- UPDATED ALUMNI ROUTE ---
-// This route now requires auth and fetches ALL alumni (verified and unverified)
-// This is required for your new DirectoryPage logic to work
+// --- CORRECTED ALUMNI ROUTE ---
+// This fetches ALL alumni (verified and unverified) for the directory
 app.get('/api/alumni', auth, async (req, res) => {
     try {
-        // Removed { isVerified: true } to fetch all users
         const alumni = await Alumni.find({}).sort({ createdAt: -1 }); 
         res.json(alumni);
     } catch (error) {
@@ -232,7 +217,7 @@ app.get('/api/alumni', auth, async (req, res) => {
 });
 
 // --- NEW ADMIN VERIFICATION ROUTE ---
-// This is the new endpoint your frontend will call
+// This is the endpoint for the "Verify" button
 app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
         const alumnus = await Alumni.findById(req.params.id);
@@ -244,8 +229,7 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
         alumnus.isVerified = true;
         await alumnus.save();
 
-        // Send back the updated user data, as the frontend expects
-        res.json(alumnus); 
+        res.json(alumnus); // Send back the updated user
 
     } catch (error) {
         console.error('Error verifying alumnus:', error);
@@ -258,7 +242,7 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
 // ------------------------------------
 
 
-// OPTIONAL UPDATE: Update total user count to include both models (Unchanged)
+// --- OTHER ROUTES (Unchanged) ---
 app.get('/api/total-users', async (req, res) => {
     try {
         const alumniCount = await Alumni.countDocuments({ isVerified: true });
@@ -270,8 +254,7 @@ app.get('/api/total-users', async (req, res) => {
     }
 });
 
-// --- Inlined Payment Routes (Events/Registration) (Unchanged) ---
-// ... (All your payment routes: /api/register-free-event, /api/create-order, /api/verify-payment are unchanged) ...
+// --- Payment Routes (Unchanged) ---
 app.post('/api/register-free-event', async (req, res) => {
     try {
         const registrationData = req.body;
@@ -390,13 +373,13 @@ app.post('/api/verify-payment', async (req, res) => {
         res.status(500).send("Internal Server Error");
     }
 });
-// --- End Inlined Payment Routes ---
+// --- End Payment Routes ---
 
 app.get('/', (req, res) => {
     res.send('Alumni Network API is running and accessible.');
 });
 
-// ... (Socket.io connection listener is unchanged) ...
+// Socket.io connection (Unchanged)
 io.on('connection', (socket) => {
     console.log('✅ A user connected via WebSocket');
     socket.on('disconnect', () => {
