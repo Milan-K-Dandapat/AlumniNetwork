@@ -164,7 +164,7 @@ const getTotalDonationAmount = async () => {
             { $group: { _id: null, totalAmount: { $sum: '$amount' } } }
         ]);
         return totalResult.length > 0 ? totalResult[0].totalAmount : 0;
-    } catch (e). {
+    } catch (e) {
         console.error("Error fetching total donation amount:", e);
         return 0;
     }
