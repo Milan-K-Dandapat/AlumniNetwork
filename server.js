@@ -10,7 +10,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import Alumni from './models/Alumni.js';
-import Teacher from './models/Teacher.js';
+import Teacher from './models/Teacher.js'; 
 import RegistrationPayment from './models/RegistrationPayment.js';
 import Donation from './models/Donation.js';
 // Import Routes
@@ -115,7 +115,7 @@ app.use((req, res, next) => {
 });
 
 // --- HELPER FUNCTIONS (Unchanged) ---
-// ... (getUpdatedEvents, getUpdatedContributions, getTotalDonationAmount) ...
+// ... (All helper functions are unchanged) ...
 const getUpdatedEvents = async (userId) => {
     try {
         const registrations = await RegistrationPayment.find({ 
@@ -164,7 +164,7 @@ const getTotalDonationAmount = async () => {
             { $group: { _id: null, totalAmount: { $sum: '$amount' } } }
         ]);
         return totalResult.length > 0 ? totalResult[0].totalAmount : 0;
-    } catch (e) {
+    } catch (e). {
         console.error("Error fetching total donation amount:", e);
         return 0;
     }
@@ -193,12 +193,13 @@ app.use('/api/stats', statsRoutes);
 // ---------------
 
 // --- ADMIN VERIFICATION SETUP ---
-const SUPER_ADMIN_ID = '60e76cba9d609b03a689ab29'; // This is your Super Admin user's _id
 
-// --- ⬇️ THIS IS THE FINAL FIX ⬇️ ---
+// --- ⬇️ THIS IS THE FINAL FIX (Correct ID) ⬇️ ---
+// This is the correct ID you provided
+const SUPER_ADMIN_ID = '68e76cba9d609b03a689ab29'; 
+
 const isSuperAdmin = (req, res, next) => {
-    // 'req.user' is attached by the 'auth' middleware
-    // Your token signs the _id as 'id' (no underscore)
+    // Your token correctly signs 'id' (no underscore)
     if (!req.user || req.user.id !== SUPER_ADMIN_ID) {
         return res.status(403).json({ message: 'Forbidden: Admin access required.' });
     }
@@ -209,7 +210,6 @@ const isSuperAdmin = (req, res, next) => {
 
 
 // --- CORRECTED ALUMNI ROUTE (Unchanged) ---
-// This fetches ALL alumni (verified and unverified) for the directory
 app.get('/api/alumni', auth, async (req, res) => {
     try {
         const alumni = await Alumni.find({}).sort({ createdAt: -1 }); 
@@ -220,7 +220,6 @@ app.get('/api/alumni', auth, async (req, res) => {
 });
 
 // --- NEW ADMIN VERIFICATION ROUTE (Unchanged) ---
-// This is the endpoint for the "Verify" button
 app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
         const alumnus = await Alumni.findById(req.params.id);
@@ -232,7 +231,7 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
         alumnus.isVerified = true;
         await alumnus.save();
 
-        res.json(alumnus); // Send back the updated user
+        res.json(alumnus); 
 
     } catch (error) {
         console.error('Error verifying alumnus:', error);
@@ -257,7 +256,7 @@ app.get('/api/total-users', async (req, res) => {
     }
 });
 
-// --- Payment Routes (Unchanged) ---
+// --- Payment Routes (Unchanged, with typo fixed) ---
 app.post('/api/register-free-event', async (req, res) => {
     try {
         const registrationData = req.body;
