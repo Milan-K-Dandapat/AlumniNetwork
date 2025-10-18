@@ -369,7 +369,7 @@ app.post('/api/verify-payment', async (req, res) => {
             } else {
                 await RegistrationPayment.findOneAndUpdate({ razorpay_order_id }, { paymentStatus: 'failed' });
             }
-            res.status(4Two00).json({ status: 'failure' });
+            res.status(400).json({ status: 'failure' });
         }
     } catch (error) {
         console.error("Error in /api/verify-payment:", error);
