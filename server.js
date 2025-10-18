@@ -31,7 +31,7 @@ import statsRoutes from './routes/statsRoutes.js';
 // --- NEW AUTH MIDDLEWARE IMPORT ---
 // ⚠️ IMPORTANT: I am assuming your auth middleware is here.
 // If it's exported from 'authRoutes.js' or elsewhere, please update this path.
-import { auth } from './middleware/auth.js'; 
+import auth from './middleware/auth.js'; 
 // ---------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
