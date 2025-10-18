@@ -7,9 +7,9 @@ export const getAlumni = [
   auth, 
   async (req, res) => {
     try {
-      // --- CRITICAL CHANGE HERE ---
-      // Removed filter { isVerified: true } so you can see ALL users.
-      // The frontend will now handle showing the "Verified" status.
+      // --- THIS IS THE FIX ---
+      // We now find ALL alumni by using an empty filter {}.
+      // The frontend will handle showing the "Verified" status.
       const alumni = await Alumni.find({}).sort({ createdAt: -1 });
       res.status(200).json(alumni);
     } catch (error) {
@@ -18,7 +18,7 @@ export const getAlumni = [
   }
 ];
 
-// --- NEW FUNCTION ---
+// --- NEW FUNCTION (This part is already correct) ---
 // This function handles the verification logic.
 // It is only called when YOU are logged in and hit the new route.
 export const verifyAlumni = async (req, res) => {
