@@ -10,7 +10,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import Alumni from './models/Alumni.js';
-import Teacher from './modelsD/Teacher.js';
+import Teacher from './models/Teacher.js';
 import RegistrationPayment from './models/RegistrationPayment.js';
 import Donation from './models/Donation.js';
 // Import Routes
