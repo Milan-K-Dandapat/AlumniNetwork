@@ -1,8 +1,9 @@
 // File: assignUniqueIds.js
 
-import mongoose from 'mongoose';
-import Alumni from './models/Alumni.js'; // ⚠️ ADJUST PATH IF NECESSARY
-import Teacher from './models/Teacher.js'; // ⚠️ ADJUST PATH IF NECESSARY
+const mongoose = require('mongoose');
+const Alumni = require('./models/Alumni.js').default; // Use .default if models export with 'export default'
+const Teacher = require('./models/Teacher.js').default; // Use .default if models export with 'export default'
+// ... rest of the code
 
 // ⚠️ YOUR SPECIFIC MONGODB CONNECTION STRING
 const MONGODB_URI = 'mongodb+srv://milan-dev:Milan123@cluster0.0stui7v.mongodb.net/alumniDB?retryWrites=true&w=majority&appName=Cluster0'; 
