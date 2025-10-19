@@ -1,14 +1,15 @@
 import express from 'express';
-import { getAlumni } from '../controllers/alumniController.js';
-// import { protect } from '../middleware/authMiddleware.js'; // Recommended for security
+import { getAlumni, verifyAlumni } from '../controllers/alumniController.js'; 
+import { protect, checkSuperAdmin } from '../middleware/authMiddleware.js'; // Use structured middleware
 
 const router = express.Router();
 
-// The direct 'router.post('/register', ...)' line MUST BE REMOVED.
+// @route   GET /api/alumni
+// @desc    Get all alumni (Access controlled by 'protect' middleware)
+router.get('/', protect, getAlumni); 
 
-// Example: Protect this route so only authenticated users can view it
-// router.get('/', protect, getAlumni); 
-
-router.get('/', getAlumni); 
+// @route   PATCH /api/alumni/:id/verify
+// @desc    Verify an alumni profile (Requires Super Admin access)
+router.patch('/:id/verify', protect, checkSuperAdmin, verifyAlumni);
 
 export default router;

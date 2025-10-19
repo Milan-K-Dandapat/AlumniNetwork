@@ -29,7 +29,8 @@ import Event from './models/Event.js';
 import statsRoutes from './routes/statsRoutes.js';
 
 // --- AUTH MIDDLEWARE IMPORT ---
-import auth from './middleware/auth.js'; 
+// ⭐ UPDATED: Importing modular middleware functions (protect and checkSuperAdmin)
+import { protect, checkSuperAdmin } from './middleware/authMiddleware.js'; 
 // ---------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
@@ -175,20 +176,15 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/stats', statsRoutes);
 // ---------------
 
-// --- ADMIN VERIFICATION SETUP (Unchanged) ---
-const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com'; 
-
-const isSuperAdmin = (req, res, next) => {
-    if (!req.user || req.user.email !== SUPER_ADMIN_EMAIL) {
-        return res.status(403).json({ message: 'Forbidden: Admin access required.' });
-    }
-    next();
-};
-// ------------------------------------
+// ⭐ REMOVED: Local isSuperAdmin function definition and SUPER_ADMIN_EMAIL constant,
+// as they are handled by the imported 'checkSuperAdmin' middleware.
+// const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com'; 
+// const isSuperAdmin = (req, res, next) => { ... };
 
 
-// --- ALUMNI ROUTES (Unchanged) ---
-app.get('/api/alumni', auth, async (req, res) => {
+// --- ALUMNI ROUTES (USING PROTECT/CHECK SUPER ADMIN) ---
+// ⭐ UPDATED: Using 'protect' middleware
+app.get('/api/alumni', protect, async (req, res) => {
     try {
         const alumni = await Alumni.find({}).sort({ createdAt: -1 }); 
         res.json(alumni);
@@ -197,7 +193,8 @@ app.get('/api/alumni', auth, async (req, res) => {
     }
 });
 
-app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
+// ⭐ UPDATED: Route now uses imported middleware functions (protect, checkSuperAdmin)
+app.patch('/api/alumni/:id/verify', protect, checkSuperAdmin, async (req, res) => {
     try {
         const alumnus = await Alumni.findById(req.params.id);
 
@@ -220,8 +217,9 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
 });
 // ------------------------------------
 
-// --- ⬇️ NEW: TEACHER VERIFICATION ROUTE ⬇️ ---
-app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
+// --- TEACHER VERIFICATION ROUTE (USING PROTECT/CHECK SUPER ADMIN) ---
+// ⭐ UPDATED: Route now uses imported middleware functions (protect, checkSuperAdmin)
+app.patch('/api/teachers/:id/verify', protect, checkSuperAdmin, async (req, res) => {
     try {
         const teacher = await Teacher.findById(req.params.id);
 
@@ -242,7 +240,7 @@ app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
-// --- ⬆️ NEW: TEACHER VERIFICATION ROUTE ⬆️ ---
+// --------------------------------------------------------------------------
 
 
 // --- OTHER ROUTES (Unchanged) ---
