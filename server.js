@@ -27,10 +27,8 @@ import careerProfileRoutes from './routes/careerProfileRoutes.js';
 import jobRoutes from './routes/jobRoutes.js'; 
 import Event from './models/Event.js'; 
 import statsRoutes from './routes/statsRoutes.js';
-
-// --- AUTH MIDDLEWARE IMPORT ---
+import sgMail from '@sendgrid/mail'; // ⭐ Ensure SendGrid is imported here
 import auth from './middleware/auth.js'; 
-// ---------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,6 +42,37 @@ mongoose.connect(MONGO_URI)
     .catch((err) => {
         console.error('❌ FATAL DB ERROR: Check MONGO_URI in .env and Render Secrets.', err);
     });
+
+// ⭐ SENDGRID CONFIGURATION & HELPER (Re-integrated from authController context) ⭐
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+const sendCongratulationEmail = async (toEmail, userName) => {
+    const fromEmail = 'mcaigitalumni@gmail.com'; // ⭐ Set the required sender email
+    const subject = '🎉 Congratulations! Your Alumni Account is Verified!';
+    const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2 style="color: #28a745;">Congratulations, ${userName}!</h2>
+            <p>We are excited to inform you that your **IGIT MCA Alumni Network** account has been successfully verified and activated by the administrator.</p>
+            <p>You now have full access to our community features, including the Career Network and Directory.</p>
+            <p style="margin-top: 20px;">
+                <strong>Next Step:</strong> Please log in and start exploring our community!
+            </p>
+            <p>Thank you for being a part of our network.</p>
+            <p style="font-size: 0.9em; color: #777;">Best regards,</p>
+            <p style="font-size: 0.9em; color: #777;">The IGIT MCA Alumni Team</p>
+        </div>
+    `;
+
+    const msg = { from: fromEmail, to: toEmail, subject: subject, html: html };
+    
+    try {
+        await sgMail.send(msg);
+        console.log(`✅ Verification email sent to: ${toEmail}`);
+    } catch (error) {
+        console.error(`❌ Failed to send verification email to ${toEmail}:`, error.message);
+    }
+};
+
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -187,7 +216,7 @@ const isSuperAdmin = (req, res, next) => {
 // ------------------------------------
 
 
-// --- ALUMNI ROUTES (Unchanged) ---
+// --- ALUMNI ROUTES (UPDATED) ---
 app.get('/api/alumni', auth, async (req, res) => {
     try {
         const alumni = await Alumni.find({}).sort({ createdAt: -1 }); 
@@ -204,9 +233,18 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
         if (!alumnus) {
             return res.status(404).json({ message: 'Alumnus not found' });
         }
+        
+        // ⭐ CRITICAL CHECK: Only send email if they are currently unverified 
+        const wasUnverified = !alumnus.isVerified;
 
         alumnus.isVerified = true;
         await alumnus.save();
+
+        // ⭐ ACTION: Send congratulation email after successful verification ⭐
+        if (wasUnverified) {
+            await sendCongratulationEmail(alumnus.email, alumnus.fullName);
+        }
+        // ⭐ END ACTION ⭐
 
         res.json(alumnus); 
 
@@ -220,7 +258,7 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
 });
 // ------------------------------------
 
-// --- ⬇️ NEW: TEACHER VERIFICATION ROUTE ⬇️ ---
+// --- TEACHER VERIFICATION ROUTE (UPDATED) ---
 app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
         const teacher = await Teacher.findById(req.params.id);
@@ -228,9 +266,18 @@ app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
         if (!teacher) {
             return res.status(404).json({ message: 'Teacher not found' });
         }
+        
+        // ⭐ CRITICAL CHECK: Only send email if they are currently unverified 
+        const wasUnverified = !teacher.isVerified;
 
         teacher.isVerified = true;
         await teacher.save();
+        
+        // ⭐ ACTION: Send congratulation email after successful verification ⭐
+        if (wasUnverified) {
+            await sendCongratulationEmail(teacher.email, teacher.fullName);
+        }
+        // ⭐ END ACTION ⭐
 
         res.json(teacher); // Send back the updated teacher data
 
@@ -242,7 +289,7 @@ app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
-// --- ⬆️ NEW: TEACHER VERIFICATION ROUTE ⬆️ ---
+// --- END TEACHER VERIFICATION ROUTE ---
 
 
 // --- OTHER ROUTES (Unchanged) ---
@@ -297,6 +344,7 @@ app.post('/api/create-order', async (req, res) => {
             amount: Number(amount) * 100,
             currency: "INR",
             receipt: `receipt_order_${new Date().getTime()}`,
+            
         };
 
         const order = await razorpay.orders.create(options);
