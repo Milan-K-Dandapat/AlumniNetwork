@@ -1,14 +1,13 @@
 import express from 'express';
 import { getAlumni } from '../controllers/alumniController.js';
-// import { protect } from '../middleware/authMiddleware.js'; // Recommended for security
+import auth from '../middleware/auth.js'; // ⭐ Import your standard auth middleware
 
 const router = express.Router();
 
-// The direct 'router.post('/register', ...)' line MUST BE REMOVED.
+// The purpose of the career network is to serve alumni. 
+// This route should only be accessible if the user is authenticated.
 
-// Example: Protect this route so only authenticated users can view it
-// router.get('/', protect, getAlumni); 
-
-router.get('/', getAlumni); 
+// ⭐ ACTION: Apply the 'auth' middleware to protect this route.
+router.get('/', auth, getAlumni); 
 
 export default router;
