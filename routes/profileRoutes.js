@@ -1,5 +1,5 @@
 import express from 'express';
-import auth from '../middleware/auth.js';
+import { protect as auth } from '../middleware/auth.js';
 import Alumni from '../models/Alumni.js';
 import Teacher from '../models/Teacher.js'; 
 
