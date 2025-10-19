@@ -101,12 +101,10 @@ export const verifyOtpAndRegister = async (req, res) => {
             req.io.emit('newUserRegistered', newUserCount + teacherCount);
         }
         
-        // ⭐ REMOVED TOKEN GENERATION HERE ⭐
-        // User must now go to the login page, where the isVerified check is enforced.
+        // ⭐ REMOVED TOKEN GENERATION HERE - User must be forced to log in ⭐
 
         res.status(201).json({
             message: 'Registration successful! Please proceed to the login page.',
-            // token field REMOVED
             user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName, userType: 'alumni' }
         });
 
@@ -188,12 +186,10 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
             req.io.emit('newUserRegistered', alumniCount + newTeacherCount);
         }
 
-        // ⭐ REMOVED TOKEN GENERATION HERE ⭐
-        // User must now go to the login page, where the isVerified check is enforced.
+        // ⭐ REMOVED TOKEN GENERATION HERE - User must be forced to log in ⭐
 
         res.status(201).json({
             message: 'Registration successful! Please proceed to the login page.',
-            // token field REMOVED
             user: { id: teacher._id, email: teacher.email, fullName: teacher.fullName, userType: 'teacher' }
         });
 
@@ -210,23 +206,36 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
 
 // 4A. LOGIN OTP SEND (STUDENT / ALUMNI)
 export const loginOtpSend = async (req, res) => {
-    // ... (This function is unchanged) ...
     const { identifier } = req.body;
     if (!identifier) { return res.status(400).json({ message: 'Email address is required.' }); }
 
     try {
-        const otp = crypto.randomInt(100000, 999999).toString();
-        const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-
-        const user = await Alumni.findOneAndUpdate(
-            { email: identifier }, 
-            { $set: { otp, otpExpires } },
-            { new: true }
-        );
+        // --- 1. Find User to Check Verification Status ---
+        const user = await Alumni.findOne({ email: identifier });
 
         if (!user) {
             return res.status(404).json({ message: 'Student/Alumni user not found.' });
         }
+
+        // ⭐ CRITICAL CHECK ADDED: Block OTP send if unverified ⭐
+        if (!user.isVerified) {
+            return res.status(403).json({ 
+                message: `Access Denied: Your account is pending admin verification. 
+                          Once verified, we will send a separate welcome email to ${user.email}.`,
+                isVerified: false 
+            });
+        }
+        // ⭐ END CRITICAL CHECK ⭐
+
+        // --- 2. Proceed with OTP generation and send (Only if verified) ---
+        const otp = crypto.randomInt(100000, 999999).toString();
+        const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+        await Alumni.findOneAndUpdate(
+            { email: identifier }, 
+            { $set: { otp, otpExpires } },
+            { new: true }
+        );
 
         await sendVerificationEmail(user.email, otp, 'Your Passwordless Login Code');
         res.status(200).json({ message: `OTP sent successfully to your registered email.` });
@@ -239,23 +248,36 @@ export const loginOtpSend = async (req, res) => {
 
 // 4B. LOGIN OTP SEND (TEACHER / FACULTY)
 export const loginOtpSendTeacher = async (req, res) => {
-    // ... (This function is unchanged) ...
     const { identifier } = req.body;
     if (!identifier) { return res.status(400).json({ message: 'Email address is required.' }); }
 
     try {
-        const otp = crypto.randomInt(100000, 999999).toString();
-        const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-
-        const user = await Teacher.findOneAndUpdate(
-            { email: identifier }, 
-            { $set: { otp, otpExpires } },
-            { new: true }
-        );
+        // --- 1. Find User to Check Verification Status ---
+        const user = await Teacher.findOne({ email: identifier });
 
         if (!user) {
             return res.status(404).json({ message: 'Faculty user not found.' });
         }
+
+        // ⭐ CRITICAL CHECK ADDED: Block OTP send if unverified ⭐
+        if (!user.isVerified) {
+            return res.status(403).json({ 
+                message: `Access Denied: Your account is pending admin verification. 
+                          Once verified, we will send a separate welcome email to ${user.email}.`,
+                isVerified: false 
+            });
+        }
+        // ⭐ END CRITICAL CHECK ⭐
+
+        // --- 2. Proceed with OTP generation and send (Only if verified) ---
+        const otp = crypto.randomInt(100000, 999999).toString();
+        const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+        await Teacher.findOneAndUpdate(
+            { email: identifier }, 
+            { $set: { otp, otpExpires } },
+            { new: true }
+        );
 
         await sendVerificationEmail(user.email, otp, 'Your Faculty Login Code');
         res.status(200).json({ message: `OTP sent successfully to your registered email.` });
@@ -281,11 +303,11 @@ export const loginOtpVerify = async (req, res) => {
 
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         
-        // ⭐ CRITICAL SECURITY FEATURE: Check if user is verified before issuing token
+        // This check is redundant now, but kept for full defense-in-depth security
         if (!user.isVerified) {
             return res.status(403).json({ 
                 message: 'Access Denied. Your account is pending admin verification.',
-                isVerified: false // Explicitly tell the client
+                isVerified: false 
             });
         }
         
@@ -325,11 +347,11 @@ export const loginOtpVerifyTeacher = async (req, res) => {
 
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
 
-        // ⭐ CRITICAL SECURITY FEATURE: Check if user is verified before issuing token
+        // This check is redundant now, but kept for full defense-in-depth security
         if (!user.isVerified) {
             return res.status(403).json({ 
                 message: 'Access Denied. Your account is pending admin verification.',
-                isVerified: false // Explicitly tell the client
+                isVerified: false 
             });
         }
 
@@ -448,6 +470,6 @@ export const resetPassword = async (req, res) => {
         res.status(200).json({ message: 'Password has been successfully reset. You can now log in.' });
     } catch (error) {
         console.error('Reset password error:', error);
-        res.status(500).json({ message: 'Server error during password reset.' });
+        res.status(500).json({ message: 'Server error during OTP verification.' });
     }
 };
