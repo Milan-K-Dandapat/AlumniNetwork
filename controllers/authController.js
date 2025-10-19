@@ -100,13 +100,12 @@ export const verifyOtpAndRegister = async (req, res) => {
             req.io.emit('newUserRegistered', newUserCount + teacherCount);
         }
 
-        // --- ⬇️ FIX 1: Add email to token ⬇️ ---
+        // Token generation allows the frontend to save the token for future login (after verification).
         const token = jwt.sign(
             { id: alumni._id, email: alumni.email, role: 'alumni' }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- ⬆️ FIX 1: Add email to token ⬆️ ---
 
         res.status(201).json({
             message: 'Registration successful!',
@@ -191,13 +190,12 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
             req.io.emit('newUserRegistered', alumniCount + newTeacherCount);
         }
 
-        // --- ⬇️ FIX 2: Add email to token ⬇️ ---
+        // Token generation allows the frontend to save the token for future login (after verification).
         const token = jwt.sign(
             { id: teacher._id, email: teacher.email, role: 'teacher' }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- ⬆️ FIX 2: Add email to token ⬆️ ---
 
         res.status(201).json({
             message: 'Registration successful!',
@@ -284,21 +282,28 @@ export const loginOtpVerify = async (req, res) => {
             otpExpires: { $gt: Date.now() },
         };
 
+        // Fetch user including the isVerified field
         const user = await Alumni.findOne(query);
 
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
-
+        
+        // ⭐ CRITICAL SECURITY FEATURE: Check if user is verified before issuing token
+        if (!user.isVerified) {
+            return res.status(403).json({ 
+                message: 'Access Denied. Your account is pending admin verification.',
+                isVerified: false // Explicitly tell the client
+            });
+        }
+        
         user.otp = undefined;
         user.otpExpires = undefined;
         await user.save({ validateBeforeSave: false });
 
-        // --- ⬇️ FIX 3: Add email to token ⬇️ ---
         const token = jwt.sign(
             { id: user._id, email: user.email, role: 'alumni' }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- ⬆️ FIX 3: Add email to token ⬆️ ---
 
         res.status(200).json({
             message: 'OTP verified. Login successful.',
@@ -321,21 +326,28 @@ export const loginOtpVerifyTeacher = async (req, res) => {
             otpExpires: { $gt: Date.now() },
         };
 
+        // Fetch user including the isVerified field
         const user = await Teacher.findOne(query);
 
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
+
+        // ⭐ CRITICAL SECURITY FEATURE: Check if user is verified before issuing token
+        if (!user.isVerified) {
+            return res.status(403).json({ 
+                message: 'Access Denied. Your account is pending admin verification.',
+                isVerified: false // Explicitly tell the client
+            });
+        }
 
         user.otp = undefined;
         user.otpExpires = undefined;
         await user.save({ validateBeforeSave: false });
 
-        // --- ⬇️ FIX 4: Add email to token ⬇️ ---
         const token = jwt.sign(
             { id: user._id, email: user.email, role: 'teacher' }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- ⬆️ FIX 4: Add email to token ⬆️ ---
 
         res.status(200).json({
             message: 'OTP verified. Login successful.',
@@ -348,8 +360,7 @@ export const loginOtpVerifyTeacher = async (req, res) => {
     }
 };
 
-// --- Remaining Traditional Login/Password Reset Functions (Retained) ---
-
+// 6. TRADITIONAL LOGIN (If still in use)
 export const login = async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -358,14 +369,20 @@ export const login = async (req, res) => {
         
         const isMatch = await bcrypt.compare(password, alumni.password);
         if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
-
-        // --- ⬇️ FIX 5: Add email to token ⬇️ ---
+        
+        // ⭐ CRITICAL SECURITY FEATURE: Check if user is verified before issuing token
+        if (!alumni.isVerified) {
+            return res.status(403).json({ 
+                message: 'Access Denied. Your account is pending admin verification.',
+                isVerified: false
+            });
+        }
+        
         const token = jwt.sign(
             { id: alumni._id, email: alumni.email }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- ⬆️ FIX 5: Add email to token ⬆️ ---
 
         res.status(200).json({ message: 'Login successful.', token, user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName } });
     } catch (error) {
@@ -374,8 +391,10 @@ export const login = async (req, res) => {
     }
 };
 
+// --- Remaining Functions (Unchanged as they do not issue login tokens) ---
+
 export const forgotPassword = async (req, res) => {
-    // ... (This function is unchanged) ...
+    // ... (unchanged) ...
     const { email } = req.body;
     try {
         const otp = crypto.randomInt(100000, 999999).toString();
@@ -406,7 +425,7 @@ export const forgotPassword = async (req, res) => {
 };
 
 export const resetPassword = async (req, res) => {
-    // ... (This function is unchanged) ...
+    // ... (unchanged) ...
     const { email, otp, newPassword } = req.body;
     try {
         const salt = await bcrypt.genSalt(10);
