@@ -1,21 +1,14 @@
 import express from 'express';
-// Import the new controller function
-import { getAlumni, verifyAlumni } from '../controllers/alumniController.js'; 
-// We use named imports for 'protect' and 'superAdminCheck'
-import { protect, superAdminCheck } from '../middleware/auth.js'; 
+import { getAlumni } from '../controllers/alumniController.js';
+// import { protect } from '../middleware/authMiddleware.js'; // Recommended for security
 
 const router = express.Router();
 
-// Route 1: Get all alumni profiles (Requires authentication)
-router.get('/', protect, getAlumni); 
+// The direct 'router.post('/register', ...)' line MUST BE REMOVED.
 
-// ⬇️ REQUIRED NEW ROUTE: Alumni Verification ⬇️
-// This route verifies an alumni profile, secured by both authentication and admin checks.
-router.patch(
-    '/:id/verify', 
-    protect, 
-    superAdminCheck, // IMPORTANT: Middleware that checks if user is Super Admin
-    verifyAlumni
-); 
+// Example: Protect this route so only authenticated users can view it
+// router.get('/', protect, getAlumni); 
+
+router.get('/', getAlumni); 
 
 export default router;
