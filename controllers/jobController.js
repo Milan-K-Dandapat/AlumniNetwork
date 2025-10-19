@@ -1,6 +1,9 @@
 import Job from '../models/Job.js';
 import Alumni from '../models/Alumni.js';
 
+// ⭐ CRITICAL CONSTANT: Super Admin Email ⭐
+const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com'; 
+
 // --- POST Job/Project ---
 export const createJobPost = async (req, res) => {
     const userId = req.user?._id;
@@ -18,7 +21,7 @@ export const createJobPost = async (req, res) => {
         }
         
         const newJob = new Job({
-            userId,
+            userId, // 💥 CRITICAL: This is saved by createJobPost
             posterName: alumni.fullName,
             title,
             company,
@@ -63,13 +66,17 @@ export const getAllJobPosts = async (req, res) => {
 };
 
 // =========================================================================
-// ⭐ NEW: UPDATE Job/Project (PUT) ⭐
+// ⭐ UPDATED: UPDATE Job/Project (PUT) ⭐
 // =========================================================================
 
 export const updateJobPost = async (req, res) => {
     const userId = req.user?._id; // User ID from the auth middleware (the editor)
+    const userEmail = req.user?.email; // 🎯 CRITICAL: Get user email from JWT
     const jobId = req.params.id;
     const updates = req.body;
+    
+    // Check if the current user is the Super Admin by email
+    const isSuperAdmin = userEmail?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
 
     if (!userId) {
         return res.status(401).json({ success: false, message: 'Authentication required.' });
@@ -82,19 +89,19 @@ export const updateJobPost = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Job post not found.' });
         }
 
-        // ⭐ AUTHORIZATION CHECK: Must be the original poster ⭐
-        if (job.userId.toString() !== userId.toString()) {
+        // ⭐ AUTHORIZATION CHECK: Poster OR Super Admin can modify ⭐
+        const isPoster = job.userId.toString() === userId.toString();
+        
+        if (!isPoster && !isSuperAdmin) {
             return res.status(403).json({ success: false, message: 'You are not authorized to edit this post.' });
         }
 
-        // Update fields dynamically, excluding non-editable ones (like userId)
-        Object.keys(updates).forEach(key => {
-            if (job[key] !== undefined && key !== 'userId') {
-                job[key] = updates[key];
-            }
-        });
-
-        const updatedJob = await job.save();
+        // Use findByIdAndUpdate for simplicity and atomicity, passing the updates directly
+        const updatedJob = await Job.findByIdAndUpdate(
+            jobId,
+            { $set: updates }, // Apply all updates from req.body
+            { new: true, runValidators: true }
+        );
 
         // 🚀 Emit Socket.IO event for real-time update
         if (req.io) {
@@ -115,12 +122,16 @@ export const updateJobPost = async (req, res) => {
 };
 
 // =========================================================================
-// ⭐ NEW: DELETE Job/Project (DELETE) ⭐
+// ⭐ UPDATED: DELETE Job/Project (DELETE) ⭐
 // =========================================================================
 
 export const deleteJobPost = async (req, res) => {
     const userId = req.user?._id; // User ID from the auth middleware (the deleter)
-    const jobId = req.params.id;   // Job ID from the URL parameter
+    const userEmail = req.user?.email; // 🎯 CRITICAL: Get user email from JWT
+    const jobId = req.params.id;   // Job ID from the URL parameter
+
+    // Check if the current user is the Super Admin by email
+    const isSuperAdmin = userEmail?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
 
     if (!userId) {
         return res.status(401).json({ success: false, message: 'Authentication required.' });
@@ -133,8 +144,10 @@ export const deleteJobPost = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Job post not found.' });
         }
 
-        // ⭐ AUTHORIZATION CHECK: Must be the original poster ⭐
-        if (job.userId.toString() !== userId.toString()) {
+        // ⭐ AUTHORIZATION CHECK: Poster OR Super Admin can delete ⭐
+        const isPoster = job.userId.toString() === userId.toString();
+
+        if (!isPoster && !isSuperAdmin) {
             return res.status(403).json({ success: false, message: 'You are not authorized to delete this post.' });
         }
 
