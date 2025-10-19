@@ -1,5 +1,3 @@
-// middleware/auth.js
-
 import jwt from 'jsonwebtoken';
 
 const getSecret = () => {
@@ -29,6 +27,7 @@ const auth = (req, res, next) => {
         const decoded = jwt.verify(token, getSecret());
 
         // 4. Extract user ID and email
+        // We look for MongoDB's default (_id) or a general ID (id)
         const userId = decoded._id || decoded.id; 
         const userEmail = decoded.email; 
 
@@ -36,20 +35,16 @@ const auth = (req, res, next) => {
             throw new Error("Token payload is missing the required user ID ('id' or '_id') or email field."); 
         }
 
-        // --- ⬇️ THIS IS THE FINAL FIX ⬇️ ---
-        // 5. Attach a comprehensive user object to the request.
-        // This ensures compatibility with all parts of your app:
-        // - `id`: For the new admin check in server.js
-        // - `_id`: For existing profile lookups (like /api/profile/me)
-        // - `email`: For the new admin check in server.js
+        // 5. Attach user object to the request. 
+        // We set both `id` and `_id` to ensure compatibility with Mongoose (.id) and older controllers (_id).
+        // The `email` is crucial for the Super Admin check.
         req.user = { id: userId, _id: userId, email: userEmail }; 
-        // --- ⬆️ THIS IS THE FINAL FIX ⬆️ ---
         
         // 6. Proceed to the next middleware
         next(); 
 
     } catch (err) {
-        // 7. Error handling (unchanged)
+        // 7. Error handling 
         console.error("JWT Verification Error:", err.message);
         
         let errorMessage = 'Token is not valid.';
