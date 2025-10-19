@@ -170,7 +170,7 @@ const isSuperAdmin = (req, res, next) => {
     next();
 };
 
-// ⬇️ NEW: USER VERIFICATION CHECK MIDDLEWARE ⬇️
+// ⬇️ USER VERIFICATION CHECK MIDDLEWARE ⬇️
 // Blocks access unless the authenticated user's profile has been verified.
 const isUserVerifiedMiddleware = (req, res, next) => {
     // 1. Check if authenticated (auth middleware must run first)
@@ -212,7 +212,7 @@ app.use('/api/stats', statsRoutes);
 // ---------------
 
 
-// --- ALUMNI ROUTES (Unchanged) ---
+// --- ALUMNI ROUTES ---
 app.get('/api/alumni', auth, async (req, res) => {
     try {
         const alumni = await Alumni.find({}).sort({ createdAt: -1 }); 
@@ -222,6 +222,7 @@ app.get('/api/alumni', auth, async (req, res) => {
     }
 });
 
+// 🚨 CRITICAL FIX: Add Socket.IO emit to notify the client (AuthContext) to refresh 🚨
 app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
         const alumnus = await Alumni.findById(req.params.id);
@@ -232,6 +233,18 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
 
         alumnus.isVerified = true;
         await alumnus.save();
+
+        // ⬇️ NEW CODE: Emit signal to client to force token refresh ⬇️
+        if (req.io) {
+            // The client AuthContext is listening on this specific user ID
+            req.io.emit(`verificationStatus:${alumnus._id}`, { isVerified: true, message: 'Your account is now verified. Please re-login.' });
+            
+            // Also update total user count for the dashboard/stats page
+            const alumniCount = await Alumni.countDocuments({ isVerified: true });
+            const teacherCount = await Teacher.countDocuments({ isVerified: true });
+            req.io.emit('newUserRegistered', alumniCount + teacherCount);
+        }
+        // ⬆️ END NEW CODE ⬆️
 
         res.json(alumnus); 
 
@@ -245,7 +258,8 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
 });
 // ------------------------------------
 
-// --- NEW: TEACHER VERIFICATION ROUTE (Unchanged) ---
+// --- TEACHER VERIFICATION ROUTE ---
+// 🚨 CRITICAL FIX: Add Socket.IO emit to notify the client (AuthContext) to refresh 🚨
 app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
         const teacher = await Teacher.findById(req.params.id);
@@ -256,6 +270,18 @@ app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
 
         teacher.isVerified = true;
         await teacher.save();
+
+        // ⬇️ NEW CODE: Emit signal to client to force token refresh ⬇️
+        if (req.io) {
+            // The client AuthContext is listening on this specific user ID
+            req.io.emit(`verificationStatus:${teacher._id}`, { isVerified: true, message: 'Your account is now verified. Please re-login.' });
+
+            // Also update total user count for the dashboard/stats page
+            const alumniCount = await Alumni.countDocuments({ isVerified: true });
+            const teacherCount = await Teacher.countDocuments({ isVerified: true });
+            req.io.emit('newUserRegistered', alumniCount + teacherCount);
+        }
+        // ⬆️ END NEW CODE ⬆️
 
         res.json(teacher); // Send back the updated teacher data
 
