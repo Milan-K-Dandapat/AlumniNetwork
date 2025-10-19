@@ -28,8 +28,9 @@ import jobRoutes from './routes/jobRoutes.js';
 import Event from './models/Event.js'; 
 import statsRoutes from './routes/statsRoutes.js';
 
-// --- AUTH MIDDLEWARE IMPORT ---
-import auth from './middleware/auth.js'; 
+// --- AUTH MIDDLEWARE IMPORT (FIXED) ---
+// We must use named import for 'protect'
+import { protect, superAdminCheck } from './middleware/auth.js'; 
 // ---------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
@@ -175,10 +176,13 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/stats', statsRoutes);
 // ---------------
 
-// --- ADMIN VERIFICATION SETUP (Unchanged) ---
+// --- ADMIN VERIFICATION SETUP (Replaced local function with imported superAdminCheck) ---
 const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com'; 
 
-const isSuperAdmin = (req, res, next) => {
+// NOTE: Since the real superAdminCheck is now in middleware/auth.js, 
+// we only need the local definition if it's used inline.
+// We are keeping the local definition of isSuperAdmin to maintain original logic flow
+const isSuperAdminLocal = (req, res, next) => {
     // Check if auth middleware ran and attached user info
     if (!req.user || req.user.email !== SUPER_ADMIN_EMAIL) {
         return res.status(403).json({ message: 'Forbidden: Admin access required.' });
@@ -190,8 +194,8 @@ const isSuperAdmin = (req, res, next) => {
 
 // --- ALUMNI ROUTES ---
 
-// Route 1: Get all alumni (Existing)
-app.get('/api/alumni', auth, async (req, res) => {
+// Route 1: Get all alumni (Existing, uses 'protect')
+app.get('/api/alumni', protect, async (req, res) => {
     try {
         // NOTE: This endpoint returns ALL alumni (verified/unverified) for the DirectoryPage.js to handle filtering/display.
         const alumni = await Alumni.find({}).sort({ createdAt: -1 }); 
@@ -201,15 +205,14 @@ app.get('/api/alumni', auth, async (req, res) => {
     }
 });
 
-// Route 2: ⬇️ NEW: Get current user's verification status ⬇️
-// This is used by CareerPage.js to implement the display guard.
-app.get('/api/alumni/status/me', auth, async (req, res) => {
+// Route 2: NEW: Get current user's verification status (uses 'protect')
+app.get('/api/alumni/status/me', protect, async (req, res) => {
     try {
-        // Use the user ID extracted from the JWT token by the `auth` middleware
+        // Use the user ID extracted from the JWT token by the `protect` middleware
         const alumni = await Alumni.findById(req.user.id || req.user._id).select('isVerified');
 
         if (!alumni) {
-            // If the user is authenticated but not found in the Alumni model (e.g., they are a teacher), treat as unverified for career page access.
+            // If the user is authenticated but not found in the Alumni model, treat as unverified for career page access.
             return res.status(404).json({ message: 'Alumni profile not found.', isVerified: false });
         }
 
@@ -221,10 +224,10 @@ app.get('/api/alumni/status/me', auth, async (req, res) => {
         res.status(500).json({ message: 'Server Error fetching status', isVerified: false });
     }
 });
-// ⬆️ END NEW ROUTE ⬆️
+// END NEW ROUTE
 
-// Route 3: Alumni Verification (Existing)
-app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
+// Route 3: Alumni Verification (Existing, uses 'protect' and local isSuperAdmin for consistency)
+app.patch('/api/alumni/:id/verify', protect, isSuperAdminLocal, async (req, res) => {
     try {
         const alumnus = await Alumni.findById(req.params.id);
 
@@ -247,8 +250,8 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
 });
 // ------------------------------------
 
-// --- TEACHER VERIFICATION ROUTE (Existing) ---
-app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
+// --- TEACHER VERIFICATION ROUTE (Existing, uses 'protect' and local isSuperAdmin for consistency) ---
+app.patch('/api/teachers/:id/verify', protect, isSuperAdminLocal, async (req, res) => {
     try {
         const teacher = await Teacher.findById(req.params.id);
 
