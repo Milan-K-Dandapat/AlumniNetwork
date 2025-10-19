@@ -1,6 +1,6 @@
 import express from 'express';
-// ✅ FIXED IMPORT: Assuming auth.js is in the ../middleware/ directory
-import protect from '../middleware/auth.js'; // Assuming auth.js exports default function
+// ✅ FIX APPLIED HERE: Changed default import to named import '{ protect }'
+import { protect } from '../middleware/auth.js'; 
 import { saveDonation, createOrder, getTotalContributions } from '../controllers/donationController.js'; 
 
 const router = express.Router();
@@ -10,7 +10,7 @@ const router = express.Router();
  * @desc Fetches the total contributions made by the authenticated user for the Dashboard.
  * @access Private (Applied 'protect' middleware)
  */
-// ✅ CORRECT: Applies your imported 'auth' middleware
+// ✅ CORRECT: Applies the named export 'protect' middleware
 router.get('/my-total', protect, getTotalContributions); 
 
 
@@ -27,7 +27,7 @@ router.post('/create-order', createOrder);
  * @desc Saves the complete donation record to MongoDB and triggers real-time update.
  * @access PRIVATE (CRITICAL FIX APPLIED HERE)
  */
-// 🛑 FIX: The saveDonation function needs the user ID from the auth token.
+// ✅ CORRECT: Ensures the user is authenticated before saving the donation
 router.post('/save-donation', protect, saveDonation); 
 
 
