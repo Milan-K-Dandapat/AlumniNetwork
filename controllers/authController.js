@@ -28,12 +28,46 @@ const sendVerificationEmail = async (toEmail, otp, subject) => {
 };
 
 
+// 🚀 NEW HELPER FUNCTION: Finds the highest numerical ID regardless of suffix (A or F)
+const getHighestNumericalID = async () => {
+    // Search both collections for the highest existing numerical ID part (e.g., 1000 from MCA1000A)
+    const alumniCodeQuery = await Alumni
+        .findOne({ alumniCode: { $ne: null, $ne: '' } })
+        .sort({ alumniCode: -1 })
+        .select('alumniCode')
+        .exec();
+
+    const teacherCodeQuery = await Teacher
+        .findOne({ teacherCode: { $ne: null, $ne: '' } })
+        .sort({ teacherCode: -1 })
+        .select('teacherCode')
+        .exec();
+
+    let highestNumber = 999; // Start new users at 1000
+
+    const extractNumber = (code) => {
+        // Regex to extract the 4-digit number between 'MCA' and the suffix letter (A/F)
+        const match = code ? code.match(/^MCA(\d{4})[AF]$/) : null;
+        return match && match[1] ? parseInt(match[1], 10) : 0;
+    };
+
+    const alumniNumber = extractNumber(alumniCodeQuery?.alumniCode);
+    const teacherNumber = extractNumber(teacherCodeQuery?.teacherCode);
+
+    // Get the absolute highest number across both user types
+    highestNumber = Math.max(highestNumber, alumniNumber, teacherNumber);
+
+    // Format the next number with leading zeros
+    const nextNumber = highestNumber + 1;
+    return String(nextNumber).padStart(4, '0');
+};
+
+
 // =========================================================================
 // 1. REGISTRATION FUNCTIONS (ALUMNI/STUDENT)
 // =========================================================================
 
 export const sendOtp = async (req, res) => {
-    // ... (This function is unchanged) ...
     const { email, fullName, batch, phoneNumber, location, company, position } = req.body;
 
     if (!email || !fullName || !batch || !phoneNumber || !location) {
@@ -77,7 +111,7 @@ export const sendOtp = async (req, res) => {
     }
 };
 
-// 🚨 CRITICAL CHANGE: Removed token generation from registration endpoint
+// 🚀 UPDATED FUNCTION: Generates and assigns the MCAxxxxA unique ID
 export const verifyOtpAndRegister = async (req, res) => {
     const { email, otp } = req.body;
     try {
@@ -91,6 +125,17 @@ export const verifyOtpAndRegister = async (req, res) => {
             return res.status(400).json({ message: 'Invalid or expired OTP.' });
         }
 
+        // --- 🚀 START OF UNIQUE ALUMNI CODE GENERATION LOGIC (MCAxxxxA) ---
+        if (!alumni.alumniCode) {
+            // Get the next available numerical ID (e.g., 1000, 1001)
+            const nextPaddedNumber = await getHighestNumericalID();
+            
+            // Format: MCA + 4-digit number + A (for Alumni)
+            alumni.alumniCode = `MCA${nextPaddedNumber}A`; 
+        }
+        // --- 🚀 END OF UNIQUE ALUMNI CODE GENERATION LOGIC ---
+
+
         alumni.otp = undefined;
         alumni.otpExpires = undefined;
         await alumni.save({ validateBeforeSave: false }); 
@@ -101,16 +146,20 @@ export const verifyOtpAndRegister = async (req, res) => {
             req.io.emit('newUserRegistered', newUserCount + teacherCount);
         }
         
-        // ⭐ REMOVED TOKEN GENERATION HERE - User must be forced to log in ⭐
-
         res.status(201).json({
-            message: 'Registration successful! Please proceed to the login page.',
-            user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName, userType: 'alumni' }
+            message: 'Registration successful! Your application is now pending administrator approval. Please proceed to the login page.',
+            user: { 
+                id: alumni._id, 
+                email: alumni.email, 
+                fullName: alumni.fullName, 
+                userType: 'alumni',
+                alumniCode: alumni.alumniCode
+            }
         });
 
     } catch (error) {
-        console.error('Error verifying OTP:', error);
-        res.status(500).json({ message: 'Server error.' });
+        console.error('Error verifying OTP and generating code:', error);
+        res.status(500).json({ message: 'Server error during registration finalization.' });
     }
 };
 
@@ -120,7 +169,6 @@ export const verifyOtpAndRegister = async (req, res) => {
 // =========================================================================
 
 export const sendOtpTeacher = async (req, res) => {
-    // ... (This function is unchanged) ...
     const { email, fullName, phoneNumber, location, department, designation } = req.body;
 
     if (!email || !fullName || !phoneNumber || !location || !department || !designation) {
@@ -162,7 +210,7 @@ export const sendOtpTeacher = async (req, res) => {
     }
 };
 
-// 🚨 CRITICAL CHANGE: Removed token generation from registration endpoint
+// 🚀 UPDATED FUNCTION: Generates and assigns the MCAxxxxF unique ID
 export const verifyOtpAndRegisterTeacher = async (req, res) => {
     const { email, otp } = req.body;
     try {
@@ -176,6 +224,16 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
             return res.status(400).json({ message: 'Invalid or expired OTP.' });
         }
 
+        // --- 🚀 START OF UNIQUE TEACHER CODE GENERATION LOGIC (MCAxxxxF) ---
+        if (!teacher.teacherCode) {
+            // Get the next available numerical ID (e.g., 1000, 1001)
+            const nextPaddedNumber = await getHighestNumericalID();
+            
+            // Format: MCA + 4-digit number + F (for Faculty)
+            teacher.teacherCode = `MCA${nextPaddedNumber}F`; 
+        }
+        // --- 🚀 END OF UNIQUE TEACHER CODE GENERATION LOGIC ---
+
         teacher.otp = undefined;
         teacher.otpExpires = undefined;
         await teacher.save({ validateBeforeSave: false }); 
@@ -186,16 +244,20 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
             req.io.emit('newUserRegistered', alumniCount + newTeacherCount);
         }
 
-        // ⭐ REMOVED TOKEN GENERATION HERE - User must be forced to log in ⭐
-
         res.status(201).json({
-            message: 'Registration successful! Please proceed to the login page.',
-            user: { id: teacher._id, email: teacher.email, fullName: teacher.fullName, userType: 'teacher' }
+            message: 'Registration successful! Your application is now pending administrator approval. Please proceed to the login page.',
+            user: { 
+                id: teacher._id, 
+                email: teacher.email, 
+                fullName: teacher.fullName, 
+                userType: 'teacher',
+                alumniCode: teacher.teacherCode // Mapping teacherCode to alumniCode for frontend compatibility
+            }
         });
 
     } catch (error) {
-        console.error('Error verifying Teacher OTP:', error);
-        res.status(500).json({ message: 'Server error.' });
+        console.error('Error verifying Teacher OTP and generating code:', error);
+        res.status(500).json({ message: 'Server error during registration finalization.' });
     }
 };
 
@@ -210,24 +272,20 @@ export const loginOtpSend = async (req, res) => {
     if (!identifier) { return res.status(400).json({ message: 'Email address is required.' }); }
 
     try {
-        // --- 1. Find User to Check Verification Status ---
         const user = await Alumni.findOne({ email: identifier });
 
         if (!user) {
             return res.status(404).json({ message: 'Student/Alumni user not found.' });
         }
 
-        // ⭐ CRITICAL CHECK ADDED: Block OTP send if unverified ⭐
         if (!user.isVerified) {
             return res.status(403).json({ 
                 message: `Access Denied: Your account is pending admin verification. 
-                          Once verified, we will send a separate welcome email to ${user.email}.`,
+                             Once verified, we will send a separate welcome email to ${user.email}.`,
                 isVerified: false 
             });
         }
-        // ⭐ END CRITICAL CHECK ⭐
 
-        // --- 2. Proceed with OTP generation and send (Only if verified) ---
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
@@ -252,24 +310,20 @@ export const loginOtpSendTeacher = async (req, res) => {
     if (!identifier) { return res.status(400).json({ message: 'Email address is required.' }); }
 
     try {
-        // --- 1. Find User to Check Verification Status ---
         const user = await Teacher.findOne({ email: identifier });
 
         if (!user) {
             return res.status(404).json({ message: 'Faculty user not found.' });
         }
 
-        // ⭐ CRITICAL CHECK ADDED: Block OTP send if unverified ⭐
         if (!user.isVerified) {
             return res.status(403).json({ 
                 message: `Access Denied: Your account is pending admin verification. 
-                          Once verified, we will send a separate welcome email to ${user.email}.`,
+                             Once verified, we will send a separate welcome email to ${user.email}.`,
                 isVerified: false 
             });
         }
-        // ⭐ END CRITICAL CHECK ⭐
 
-        // --- 2. Proceed with OTP generation and send (Only if verified) ---
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
@@ -298,12 +352,10 @@ export const loginOtpVerify = async (req, res) => {
             otpExpires: { $gt: Date.now() },
         };
 
-        // Fetch user including the isVerified field
         const user = await Alumni.findOne(query);
 
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         
-        // This check is redundant now, but kept for full defense-in-depth security
         if (!user.isVerified) {
             return res.status(403).json({ 
                 message: 'Access Denied. Your account is pending admin verification.',
@@ -324,7 +376,13 @@ export const loginOtpVerify = async (req, res) => {
         res.status(200).json({
             message: 'OTP verified. Login successful.',
             token,
-            user: { id: user._id, email: user.email, fullName: user.fullName, userType: 'alumni' }
+            user: { 
+                id: user._id, 
+                email: user.email, 
+                fullName: user.fullName, 
+                userType: 'alumni',
+                alumniCode: user.alumniCode
+            }
         });
     } catch (error) {
         console.error('Login OTP Verify Error (Student):', error);
@@ -342,12 +400,10 @@ export const loginOtpVerifyTeacher = async (req, res) => {
             otpExpires: { $gt: Date.now() },
         };
 
-        // Fetch user including the isVerified field
         const user = await Teacher.findOne(query);
 
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
 
-        // This check is redundant now, but kept for full defense-in-depth security
         if (!user.isVerified) {
             return res.status(403).json({ 
                 message: 'Access Denied. Your account is pending admin verification.',
@@ -368,7 +424,13 @@ export const loginOtpVerifyTeacher = async (req, res) => {
         res.status(200).json({
             message: 'OTP verified. Login successful.',
             token,
-            user: { id: user._id, email: user.email, fullName: user.fullName, userType: 'teacher' }
+            user: { 
+                id: user._id, 
+                email: user.email, 
+                fullName: user.fullName, 
+                userType: 'teacher',
+                alumniCode: user.teacherCode // Ensures the frontend Navbar can read the code
+            }
         });
     } catch (error) {
         console.error('Login OTP Verify Error (Teacher):', error);
@@ -380,13 +442,12 @@ export const loginOtpVerifyTeacher = async (req, res) => {
 export const login = async (req, res) => {
     const { email, password } = req.body;
     try {
-        const alumni = await Alumni.findOne({ email }).select('+password');
+        const alumni = await Alumni.findOne({ email }).select('+password'); 
         if (!alumni || !alumni.password) { return res.status(400).json({ message: 'Invalid credentials.' }); }
         
         const isMatch = await bcrypt.compare(password, alumni.password);
         if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
         
-        // ⭐ CRITICAL SECURITY FEATURE: Check if user is verified before issuing token
         if (!alumni.isVerified) {
             return res.status(403).json({ 
                 message: 'Access Denied. Your account is pending admin verification.',
@@ -400,7 +461,16 @@ export const login = async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        res.status(200).json({ message: 'Login successful.', token, user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName } });
+        res.status(200).json({ 
+            message: 'Login successful.', 
+            token, 
+            user: { 
+                id: alumni._id, 
+                email: alumni.email, 
+                fullName: alumni.fullName,
+                alumniCode: alumni.alumniCode
+            } 
+        });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ message: 'Server error.' });
@@ -410,7 +480,6 @@ export const login = async (req, res) => {
 // --- Remaining Functions (Unchanged as they do not issue login tokens) ---
 
 export const forgotPassword = async (req, res) => {
-    // ... (unchanged) ...
     const { email } = req.body;
     try {
         const otp = crypto.randomInt(100000, 999999).toString();
@@ -441,7 +510,6 @@ export const forgotPassword = async (req, res) => {
 };
 
 export const resetPassword = async (req, res) => {
-    // ... (unchanged) ...
     const { email, otp, newPassword } = req.body;
     try {
         const salt = await bcrypt.genSalt(10);

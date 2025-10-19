@@ -4,7 +4,7 @@ const alumniSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     phoneNumber: { type: String, required: true },
-    location: { type: String, required: true }, // <<<--- FIELD ADDED HERE
+    location: { type: String, required: true },
     batch: { type: Number, required: true },
     company: { type: String },
     position: { type: String },
@@ -24,8 +24,16 @@ const alumniSchema = new mongoose.Schema({
         type: Date,
     },
 
+    // 🚀 NEW FIELD ADDED: UNIQUE ALUMNI CODE (MCAxxxxA format)
+    alumniCode: {
+        type: String,
+        unique: true,   // IMPORTANT: Ensures no two alumni have the same code
+        sparse: true    // IMPORTANT: Allows existing users (created before this update) to exist without a code
+    },
+    // ------------------------------------
+
     // --- NEW PROFILE & DASHBOARD FIELDS ---
-    profilePictureUrl: { // <-- 🚨 NEW FIELD ADDED HERE 🚨
+    profilePictureUrl: { 
         type: String,
         default: ''
     },

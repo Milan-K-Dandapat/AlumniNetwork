@@ -23,8 +23,16 @@ const teacherSchema = new mongoose.Schema({
     location: {
         type: String,
         required: true
-    }, // <<<--- FIELD ADDED HERE
+    },
     
+    // 🚀 NEW FIELD ADDED: UNIQUE TEACHER/FACULTY CODE (MCAxxxxF format)
+    teacherCode: {
+        type: String,
+        unique: true,   // IMPORTANT: Ensures no two faculty members have the same code
+        sparse: true    // IMPORTANT: Allows existing users (created before this update) to exist without a code
+    },
+    // ------------------------------------
+
     // --- TEACHER/FACULTY SPECIFIC FIELDS ---
     department: { 
         type: String, 
