@@ -1,7 +1,6 @@
 import express from 'express';
-// ✅ CRITICAL FIX: Changed from default import (import protect from ...) to named import ({ protect })
-// This resolves the "does not provide an export named 'default'" SyntaxError.
-import { protect } from '../middleware/auth.js'; 
+// ✅ FIXED IMPORT: Assuming auth.js is in the ../middleware/ directory
+import protect from '../middleware/auth.js'; // Assuming auth.js exports default function
 import { saveDonation, createOrder, getTotalContributions } from '../controllers/donationController.js'; 
 
 const router = express.Router();
@@ -11,7 +10,7 @@ const router = express.Router();
  * @desc Fetches the total contributions made by the authenticated user for the Dashboard.
  * @access Private (Applied 'protect' middleware)
  */
-// ✅ CORRECT: Applies your imported 'protect' middleware
+// ✅ CORRECT: Applies your imported 'auth' middleware
 router.get('/my-total', protect, getTotalContributions); 
 
 
@@ -26,9 +25,9 @@ router.post('/create-order', createOrder);
 /**
  * @route POST /api/donate/save-donation
  * @desc Saves the complete donation record to MongoDB and triggers real-time update.
- * @access PRIVATE 
+ * @access PRIVATE (CRITICAL FIX APPLIED HERE)
  */
-// 🛑 Correctly applies 'protect' to ensure only authenticated users can save a donation.
+// 🛑 FIX: The saveDonation function needs the user ID from the auth token.
 router.post('/save-donation', protect, saveDonation); 
 
 

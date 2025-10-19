@@ -100,13 +100,13 @@ export const verifyOtpAndRegister = async (req, res) => {
             req.io.emit('newUserRegistered', newUserCount + teacherCount);
         }
 
-        // --- IMPORTANT: Email included in token for Super Admin check ---
+        // --- ⬇️ FIX 1: Add email to token ⬇️ ---
         const token = jwt.sign(
             { id: alumni._id, email: alumni.email, role: 'alumni' }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- End IMPORTANT ---
+        // --- ⬆️ FIX 1: Add email to token ⬆️ ---
 
         res.status(201).json({
             message: 'Registration successful!',
@@ -191,13 +191,13 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
             req.io.emit('newUserRegistered', alumniCount + newTeacherCount);
         }
 
-        // --- IMPORTANT: Email included in token for Super Admin check ---
+        // --- ⬇️ FIX 2: Add email to token ⬇️ ---
         const token = jwt.sign(
             { id: teacher._id, email: teacher.email, role: 'teacher' }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- End IMPORTANT ---
+        // --- ⬆️ FIX 2: Add email to token ⬆️ ---
 
         res.status(201).json({
             message: 'Registration successful!',
@@ -292,13 +292,13 @@ export const loginOtpVerify = async (req, res) => {
         user.otpExpires = undefined;
         await user.save({ validateBeforeSave: false });
 
-        // --- IMPORTANT: Email included in token for Super Admin check ---
+        // --- ⬇️ FIX 3: Add email to token ⬇️ ---
         const token = jwt.sign(
             { id: user._id, email: user.email, role: 'alumni' }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- End IMPORTANT ---
+        // --- ⬆️ FIX 3: Add email to token ⬆️ ---
 
         res.status(200).json({
             message: 'OTP verified. Login successful.',
@@ -329,13 +329,13 @@ export const loginOtpVerifyTeacher = async (req, res) => {
         user.otpExpires = undefined;
         await user.save({ validateBeforeSave: false });
 
-        // --- IMPORTANT: Email included in token for Super Admin check ---
+        // --- ⬇️ FIX 4: Add email to token ⬇️ ---
         const token = jwt.sign(
             { id: user._id, email: user.email, role: 'teacher' }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- End IMPORTANT ---
+        // --- ⬆️ FIX 4: Add email to token ⬆️ ---
 
         res.status(200).json({
             message: 'OTP verified. Login successful.',
@@ -359,13 +359,13 @@ export const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, alumni.password);
         if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
 
-        // --- IMPORTANT: Email included in token for Super Admin check ---
+        // --- ⬇️ FIX 5: Add email to token ⬇️ ---
         const token = jwt.sign(
             { id: alumni._id, email: alumni.email }, 
             getSecret(), 
             { expiresIn: '7d' }
         );
-        // --- End IMPORTANT ---
+        // --- ⬆️ FIX 5: Add email to token ⬆️ ---
 
         res.status(200).json({ message: 'Login successful.', token, user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName } });
     } catch (error) {
