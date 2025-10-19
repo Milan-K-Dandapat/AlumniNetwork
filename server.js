@@ -29,8 +29,8 @@ import Event from './models/Event.js';
 import statsRoutes from './routes/statsRoutes.js';
 
 // --- AUTH MIDDLEWARE IMPORT ---
-// ⭐ UPDATED: Importing modular middleware functions (protect and checkSuperAdmin)
-import { protect, checkSuperAdmin } from './middleware/authMiddleware.js'; 
+// ⭐ FIX: Switching the import name back to './middleware/auth.js' to resolve ERR_MODULE_NOT_FOUND
+import { protect, checkSuperAdmin } from './middleware/auth.js'; 
 // ---------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
@@ -175,12 +175,6 @@ app.use('/api/career-profile', careerProfileRoutes);
 app.use('/api/jobs', jobRoutes); 
 app.use('/api/stats', statsRoutes);
 // ---------------
-
-// ⭐ REMOVED: Local isSuperAdmin function definition and SUPER_ADMIN_EMAIL constant,
-// as they are handled by the imported 'checkSuperAdmin' middleware.
-// const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com'; 
-// const isSuperAdmin = (req, res, next) => { ... };
-
 
 // --- ALUMNI ROUTES (USING PROTECT/CHECK SUPER ADMIN) ---
 // ⭐ UPDATED: Using 'protect' middleware
