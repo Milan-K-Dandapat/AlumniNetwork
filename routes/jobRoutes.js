@@ -1,19 +1,19 @@
 import express from 'express';
-// ⭐ UPDATED: Import updateJobPost and deleteJobPost from the controller
+// ⭐ FIX APPLIED HERE: Use named import { protect } instead of default import auth
 import { createJobPost, getAllJobPosts, updateJobPost, deleteJobPost } from '../controllers/jobController.js'; 
-import auth from '../middleware/auth.js'; 
+import { protect } from '../middleware/auth.js'; 
 
 const router = express.Router();
 
 // Route to fetch all job posts (Requires Authentication) and create new posts
 // Consolidating '/' routes for clean routing
 router.route('/')
-    .get(auth, getAllJobPosts)
-    .post(auth, createJobPost);
+    .get(protect, getAllJobPosts) // Correctly using 'protect'
+    .post(protect, createJobPost); // Correctly using 'protect'
 
 // ⭐ NEW ROUTE: To handle updates and deletions for a specific job/project by ID
 router.route('/:id')
-    .put(auth, updateJobPost)   // Handles editing a job/project
-    .delete(auth, deleteJobPost); // Handles deleting a job/project
+    .put(protect, updateJobPost)   // Correctly using 'protect'
+    .delete(protect, deleteJobPost); // Correctly using 'protect'
 
 export default router;
