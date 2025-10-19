@@ -20,7 +20,7 @@ const auth = (req, res, next) => {
         
         // 2. Validate token format
         if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
-             return res.status(401).json({ msg: 'Token format is invalid. Expected: Bearer <token>.' });
+            return res.status(401).json({ msg: 'Token format is invalid. Expected: Bearer <token>.' });
         }
         
         const token = tokenParts[1];
@@ -28,37 +28,38 @@ const auth = (req, res, next) => {
         // 3. Verify the token
         const decoded = jwt.verify(token, getSecret());
 
-        // 4. Extract user ID and email
+        // 4. Extract user ID, email, and CRITICALLY, the verification status
         const userId = decoded._id || decoded.id; 
         const userEmail = decoded.email; 
+        const isVerified = decoded.isVerified; // <--- 🚨 NEW: Extracting isVerified flag
 
         if (!userId || !userEmail) {
             throw new Error("Token payload is missing the required user ID ('id' or '_id') or email field."); 
         }
 
-        // --- ⬇️ THIS IS THE FINAL FIX ⬇️ ---
         // 5. Attach a comprehensive user object to the request.
-        // This ensures compatibility with all parts of your app:
-        // - `id`: For the new admin check in server.js
-        // - `_id`: For existing profile lookups (like /api/profile/me)
-        // - `email`: For the new admin check in server.js
-        req.user = { id: userId, _id: userId, email: userEmail }; 
-        // --- ⬆️ THIS IS THE FINAL FIX ⬆️ ---
+        // The `isUserVerifiedMiddleware` relies on the `isVerified` field being here.
+        req.user = { 
+            id: userId, 
+            _id: userId, 
+            email: userEmail,
+            isVerified: isVerified // <--- 🚨 NEW: Attaching isVerified to req.user
+        }; 
         
         // 6. Proceed to the next middleware
         next(); 
 
     } catch (err) {
-        // 7. Error handling (unchanged)
+        // 7. Error handling 
         console.error("JWT Verification Error:", err.message);
         
         let errorMessage = 'Token is not valid.';
         if (err.name === 'TokenExpiredError') {
-             errorMessage = 'Token expired. Please log in again.';
+            errorMessage = 'Token expired. Please log in again.';
         } else if (err.name === 'JsonWebTokenError') {
-             errorMessage = 'Invalid token signature.';
+            errorMessage = 'Invalid token signature.';
         } else {
-             errorMessage = err.message; 
+            errorMessage = err.message; 
         }
 
         res.status(401).json({ msg: `Authentication failed: ${errorMessage}` });
