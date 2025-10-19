@@ -1,5 +1,6 @@
 import CareerProfile from '../models/CareerProfile.js';
 
+// --- SAVE/UPDATE Career Profile (POST /api/career-profile) ---
 export const saveCareerProfile = async (req, res) => {
     // Get the user ID attached by the 'auth.js' middleware
     const userId = req.user?._id; 
@@ -46,7 +47,7 @@ export const saveCareerProfile = async (req, res) => {
         } 
     }
     
-    // --- ⭐ UPDATE: Combine profile data, emails, file info, and user ID ---
+    // --- ⭐ Combine profile data, emails, file info, and user ID ---
     const dataToSave = {
         ...parsedProfileData,
         ...fileInfo,
@@ -57,7 +58,7 @@ export const saveCareerProfile = async (req, res) => {
     };
     
     // Clean up temporary client-side flags before saving
-    delete dataToSave.resumeFile;   
+    delete dataToSave.resumeFile;   
     delete dataToSave.uploadLater; 
 
     try {
@@ -66,8 +67,8 @@ export const saveCareerProfile = async (req, res) => {
             { userId: userId },
             dataToSave, 
             { 
-                new: true,          // Return the updated document
-                upsert: true,       // Create if it doesn't exist
+                new: true,       // Return the updated document
+                upsert: true,      // Create if it doesn't exist
                 runValidators: true // Run Mongoose schema validation
             }
         ).lean(); 
@@ -95,6 +96,31 @@ export const saveCareerProfile = async (req, res) => {
         }
         
         // Handle other server errors
+        res.status(500).json({ success: false, message: 'An unexpected server error occurred.' });
+    }
+};
+
+// --- ⭐ NEW: GET My Career Profile (GET /api/career-profile/me) ⭐ ---
+export const getMyCareerProfile = async (req, res) => {
+    const userId = req.user?._id; // User ID from the auth middleware
+    
+    if (!userId) {
+        // This should not happen if auth middleware works, but serves as a final check
+        return res.status(401).json({ success: false, message: 'Not authorized.' });
+    }
+
+    try {
+        const profile = await CareerProfile.findOne({ userId: userId }).lean();
+
+        if (!profile) {
+            // Send 404 if the profile doesn't exist. The frontend handles this by switching to 'builder' view.
+            return res.status(404).json({ success: false, message: 'Career profile not found for this user.' });
+        }
+
+        res.status(200).json({ success: true, data: profile });
+
+    } catch (error) {
+        console.error('Error fetching career profile:', error);
         res.status(500).json({ success: false, message: 'An unexpected server error occurred.' });
     }
 };
