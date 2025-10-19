@@ -77,6 +77,7 @@ export const sendOtp = async (req, res) => {
     }
 };
 
+// 🚨 CRITICAL CHANGE: Removed token generation from registration endpoint
 export const verifyOtpAndRegister = async (req, res) => {
     const { email, otp } = req.body;
     try {
@@ -99,17 +100,13 @@ export const verifyOtpAndRegister = async (req, res) => {
             const teacherCount = await Teacher.countDocuments({ isVerified: true });
             req.io.emit('newUserRegistered', newUserCount + teacherCount);
         }
-
-        // Token generation allows the frontend to save the token for future login (after verification).
-        const token = jwt.sign(
-            { id: alumni._id, email: alumni.email, role: 'alumni' }, 
-            getSecret(), 
-            { expiresIn: '7d' }
-        );
+        
+        // ⭐ REMOVED TOKEN GENERATION HERE ⭐
+        // User must now go to the login page, where the isVerified check is enforced.
 
         res.status(201).json({
-            message: 'Registration successful!',
-            token,
+            message: 'Registration successful! Please proceed to the login page.',
+            // token field REMOVED
             user: { id: alumni._id, email: alumni.email, fullName: alumni.fullName, userType: 'alumni' }
         });
 
@@ -167,6 +164,7 @@ export const sendOtpTeacher = async (req, res) => {
     }
 };
 
+// 🚨 CRITICAL CHANGE: Removed token generation from registration endpoint
 export const verifyOtpAndRegisterTeacher = async (req, res) => {
     const { email, otp } = req.body;
     try {
@@ -190,16 +188,12 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
             req.io.emit('newUserRegistered', alumniCount + newTeacherCount);
         }
 
-        // Token generation allows the frontend to save the token for future login (after verification).
-        const token = jwt.sign(
-            { id: teacher._id, email: teacher.email, role: 'teacher' }, 
-            getSecret(), 
-            { expiresIn: '7d' }
-        );
+        // ⭐ REMOVED TOKEN GENERATION HERE ⭐
+        // User must now go to the login page, where the isVerified check is enforced.
 
         res.status(201).json({
-            message: 'Registration successful!',
-            token,
+            message: 'Registration successful! Please proceed to the login page.',
+            // token field REMOVED
             user: { id: teacher._id, email: teacher.email, fullName: teacher.fullName, userType: 'teacher' }
         });
 
