@@ -1,14 +1,30 @@
 import express from 'express';
-import { getTeachers } from '../controllers/teacherController.js'; // Assuming you named the controller file teacherController.js
-import auth from '../middleware/auth.js'; // Assuming middleware path
+// ✅ UPDATE: Import the new verification controller function
+import { getTeachers, verifyTeacher } from '../controllers/teacherController.js'; 
+// ✅ UPDATE: Use named exports for the middleware (protect and superAdminCheck)
+import { protect, superAdminCheck } from '../middleware/auth.js'; 
 
 const router = express.Router();
 
 /**
  * @route   GET /api/teachers
- * @desc    Get all verified teacher/faculty profiles for the directory
+ * @desc    Get all teacher/faculty profiles for the directory
  * @access  Private (Requires JWT Token)
  */
-router.get('/', auth, getTeachers); // 🚨 Protection added: Requires valid authentication token
+// ✅ UPDATE: Use 'protect' instead of 'auth' for consistency
+router.get('/', protect, getTeachers); 
+
+/**
+ * @route   PATCH /api/teachers/:id/verify
+ * @desc    Super Admin verifies a teacher profile
+ * @access  Private (Super Admin Only)
+ */
+// ⬇️ REQUIRED NEW ROUTE ⬇️
+router.patch(
+    '/:id/verify', 
+    protect, 
+    superAdminCheck, // Ensures only milankumar7770@gmail.com can verify
+    verifyTeacher
+); 
 
 export default router;

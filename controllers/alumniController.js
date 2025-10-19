@@ -1,19 +1,43 @@
 import Alumni from '../models/Alumni.js';
-import auth from '../middleware/auth.js'; // 👈 1. Import the auth middleware
+// Removed redundant auth import as middleware is handled in routes
 
-// This function is no longer needed in a separate controller,
-// as the logic is already in your main server.js file.
-// However, if you want to keep it separate, it should be protected like this.
-
-export const getAlumni = [ // 👈 2. Wrap the function in an array to include middleware
-  auth, // 👈 3. Add the auth middleware first
-  async (req, res) => {
+// ⬇️ REQUIRED NEW CONTROLLER FUNCTION: verifyAlumni ⬇️
+export const verifyAlumni = async (req, res) => {
     try {
-      // Now, only authenticated users can access this list.
-      const alumni = await Alumni.find({ isVerified: true }).sort({ createdAt: -1 });
-      res.status(200).json(alumni);
+        const alumniId = req.params.id;
+
+        // Find the alumni by ID and update isVerified to true
+        const updatedAlumni = await Alumni.findByIdAndUpdate(
+            alumniId,
+            { isVerified: true },
+            { new: true, runValidators: true } // Return the new document, run validation
+        );
+
+        if (!updatedAlumni) {
+            return res.status(404).json({ message: 'Alumni not found.' });
+        }
+
+        // Send the updated alumni object back to the frontend (DirectoryPage.js)
+        res.status(200).json(updatedAlumni);
+
     } catch (error) {
-      res.status(500).json({ message: 'Error fetching alumni', error });
+        console.error("Error verifying alumni:", error);
+        res.status(500).json({ message: 'Failed to verify alumni. Server error.', error: error.message });
     }
-  }
-];
+};
+// ⬆️ END OF NEW CONTROLLER FUNCTION ⬆️
+
+// Your existing getAlumni function. If this is meant to be called by the admin page, 
+// it should return all, but based on your previous controller logic, it was restricted.
+// Since DirectoryPage fetches all, we will simplify this to fetch all, and let the 
+// client-side handle the filtering if needed.
+
+export const getAlumni = async (req, res) => {
+    try {
+        // Fetch ALL alumni, letting the frontend filter based on its needs (as per DirectoryPage.js)
+        const alumni = await Alumni.find({}).sort({ createdAt: -1 });
+        res.status(200).json(alumni);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching alumni', error });
+    }
+};
