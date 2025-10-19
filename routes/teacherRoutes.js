@@ -1,6 +1,7 @@
 import express from 'express';
 import { getTeachers } from '../controllers/teacherController.js'; // Assuming you named the controller file teacherController.js
-import auth from '../middleware/auth.js'; // Assuming middleware path
+// FIX: Import the 'protect' function and alias it as 'auth' to maintain compatibility
+import { protect as auth } from '../middleware/auth.js'; 
 
 const router = express.Router();
 
@@ -9,6 +10,6 @@ const router = express.Router();
  * @desc    Get all verified teacher/faculty profiles for the directory
  * @access  Private (Requires JWT Token)
  */
-router.get('/', auth, getTeachers); // 🚨 Protection added: Requires valid authentication token
+router.get('/', auth, getTeachers); // Protection added: Requires valid authentication token
 
 export default router;
