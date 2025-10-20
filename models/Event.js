@@ -1,31 +1,38 @@
 import mongoose from 'mongoose';
 
 const eventSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  description: { type: String },
-  date: { type: Date, required: true },
-  location: { type: String },
-  priority: { type: String, default: 'Medium' },
-  registrationLink: { type: String },
+    // --- Core Event Fields ---
+    title: { type: String, required: true },
+    description: { type: String }, // Used for short description or default long description
+    date: { type: Date, required: true },
+    location: { type: String },
+    priority: { type: String, default: 'Medium' },
+    registrationLink: { type: String },
 
-  // Pricing fields
-  baseCost: { type: Number, default: 0 },
-  guestCost: { type: Number, default: 0 },
-  tShirtPrice: { type: Number, default: 0 },
-  isFoodAvailable: { type: Boolean, default: false },
-  currency: { type: String, default: 'INR' }, // optional
+    // --- Pricing Fields ---
+    baseCost: { type: Number, default: 0 },
+    guestCost: { type: Number, default: 0 },
+    tShirtPrice: { type: Number, default: 0 },
+    isFoodAvailable: { type: Boolean, default: false },
+    currency: { type: String, default: 'INR' },
 
-  // Registrations reference (optional)
-  registrations: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Registration'
-  }],
+    // --- Rich Content Fields (For Detail Page Editor) 💡 NEW
+    imageUrl: { type: String }, // For the banner/photo upload (Cloudinary URL)
+    agenda: { type: String }, // For structured agenda/topics content
+    organizer: { type: String }, // Organizer Name
+    contactEmail: { type: String }, // Organizer Contact Email
 
-  // Archive fields
-  isArchived: { type: Boolean, default: false },
-  photoLink: { type: String },
-  videoLink: { type: String },
-  resourceLink: { type: String },
+    // --- Registrations reference (optional) ---
+    registrations: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Registration'
+    }],
+
+    // --- Archive Fields ---
+    isArchived: { type: Boolean, default: false },
+    photoLink: { type: String }, // Archive Photo Gallery Link
+    videoLink: { type: String }, // Archive Video Link
+    resourceLink: { type: String }, // Archive Resource Link
 }, { timestamps: true });
 
 const Event = mongoose.model('Event', eventSchema);

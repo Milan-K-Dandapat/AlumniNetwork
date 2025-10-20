@@ -1,6 +1,7 @@
 import express from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import mongoose from 'mongoose'; // 💡 NEW: Import Mongoose to validate/handle ObjectId
 import RegistrationPayment from '../models/RegistrationPayment.js';
 import Event from '../models/Event.js';
 // Assuming authentication middleware imports if they were used:
@@ -25,7 +26,7 @@ if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
     razorpay = { orders: { create: async () => { throw new Error("Razorpay not configured."); } } };
 }
 
-// Utility function to fetch and emit the user's updated event list
+// Utility function to fetch and emit the user's updated event list (Unchanged)
 const fetchAndEmitUpdatedEvents = async (io, userId) => {
     // NOTE: This utility function requires io and a valid userId
     if (!io || !userId) return;
@@ -61,9 +62,40 @@ const fetchAndEmitUpdatedEvents = async (io, userId) => {
 // ====================================================================
 
 /**
- * @route   POST /api/register-free-event
- * @desc    Handles registration for events with a total amount of 0
- * @access  Public
+ * @route   GET /api/events/:id 💡 CRITICAL FIX: Fetch Single Event Details
+ * @desc    Get a single event by ID (PUBLIC)
+ * @access  Public
+ */
+router.get('/:id', async (req, res) => {
+    const eventId = req.params.id;
+
+    // 1. Validate if the ID format is a valid MongoDB ObjectId structure
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        // This addresses the 404/Bad Request for non-ObjectId strings like 'unxfkmcd'
+        return res.status(404).json({ message: 'Event not found or invalid ID format.' });
+    }
+    
+    try {
+        // 2. Use findById, which correctly handles the validated ObjectId string
+        const event = await Event.findById(eventId); 
+
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found.' });
+        }
+
+        res.status(200).json(event);
+
+    } catch (err) {
+        console.error('Error fetching single event details:', err);
+        // This catch block handles potential server/database issues
+        res.status(500).json({ message: 'Server error fetching event details.' });
+    }
+});
+
+/**
+ * @route   POST /api/register-free-event (Unchanged)
+ * @desc    Handles registration for events with a total amount of 0
+ * @access  Public
  */
 router.post('/register-free-event', async (req, res) => {
     try {
@@ -95,9 +127,9 @@ router.post('/register-free-event', async (req, res) => {
 });
 
 /**
- * @route   POST /api/create-order
- * @desc    Creates a Razorpay order for paid registrations
- * @access  Public
+ * @route   POST /api/create-order (Unchanged)
+ * @desc    Creates a Razorpay order for paid registrations
+ * @access  Public
  */
 router.post('/create-order', async (req, res) => {
     try {
@@ -137,9 +169,9 @@ router.post('/create-order', async (req, res) => {
 });
 
 /**
- * @route   POST /api/verify-payment
- * @desc    Verifies the payment signature from Razorpay after payment
- * @access  Public
+ * @route   POST /api/verify-payment (Unchanged)
+ * @desc    Verifies the payment signature from Razorpay after payment
+ * @access  Public
  */
 router.post('/verify-payment', async (req, res) => {
     try {
@@ -186,11 +218,12 @@ router.post('/verify-payment', async (req, res) => {
 
 // NEW: Endpoint to fetch the registered events for a specific user (Required by Dashboard)
 /**
- * @route  GET /api/events/my-registrations
- * @desc   Get events registered by the authenticated user
- * @access Private (Requires authentication/protection middleware)
+ * @route   GET /api/events/my-registrations (Unchanged)
+ * @desc    Get events registered by the authenticated user
+ * @access  Private (Requires authentication/protection middleware)
  */
 router.get('/my-registrations', async (req, res) => {
+    // Assuming req.user is set by authentication middleware
     const userId = req.user?._id; 
 
     if (!userId) {
@@ -222,9 +255,9 @@ router.get('/my-registrations', async (req, res) => {
 
 
 /**
- * @route   GET /api/events/upcoming
- * @desc    Get all non-archived events (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/upcoming (Unchanged)
+ * @desc    Get all non-archived events (PUBLIC)
+ * @access  Public
  */
 router.get('/upcoming', async (req, res) => {
     try {
@@ -237,9 +270,9 @@ router.get('/upcoming', async (req, res) => {
 });
 
 /**
- * @route   GET /api/events/past  <-- 🚨 CRITICAL ADDITION
- * @desc    Get all archived events (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/past (Unchanged)
+ * @desc    Get all archived events (PUBLIC)
+ * @access  Public
  */
 router.get('/past', async (req, res) => {
     try {
@@ -257,12 +290,10 @@ router.get('/past', async (req, res) => {
 // --- ADMIN PANEL ROUTES ---
 // ====================================================================
 
-// ... (Rest of Admin routes remain unchanged) ...
-
 /**
- * @route   POST /api/events
- * @desc    Create a new event (ADMIN)
- * @access  Private
+ * @route   POST /api/events (Unchanged)
+ * @desc    Create a new event (ADMIN)
+ * @access  Private
  */
 router.post('/', async (req, res) => {
     // NOTE: Apply authentication middleware here
@@ -284,15 +315,20 @@ router.post('/', async (req, res) => {
 });
 
 /**
- * @route   PUT /api/events/:id
- * @desc    Update an existing event (ADMIN)
- * @access  Private
+ * @route   PUT /api/events/:id (Unchanged)
+ * @desc    Update an existing event (ADMIN)
+ * @access  Private
  */
 router.put('/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
         
+        // Ensure ID is valid before attempting findByIdAndUpdate
+        if (!mongoose.Types.ObjectId.isValid(eventId)) {
+            return res.status(404).json({ message: 'Event not found or invalid ID format.' });
+        }
+
         const updatedEvent = await Event.findByIdAndUpdate(
             eventId, 
             req.body, 
@@ -317,15 +353,20 @@ router.put('/:id', async (req, res) => {
 });
 
 /**
- * @route   PATCH /api/events/finalize/:id  <-- 🚨 CRITICAL ADDITION (Used by AdminPage.js)
- * @desc    Move an event from Upcoming to Archived (ADMIN)
- * @access  Private
+ * @route   PATCH /api/events/finalize/:id (Unchanged)
+ * @desc    Move an event from Upcoming to Archived (ADMIN)
+ * @access  Private
  */
 router.patch('/finalize/:id', async (req, res) => { 
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id;
         
+        // Ensure ID is valid before attempting findByIdAndUpdate
+        if (!mongoose.Types.ObjectId.isValid(eventId)) {
+            return res.status(404).json({ message: 'Event not found or invalid ID format.' });
+        }
+
         // Mark as archived and update optional media links passed in req.body
         const finalizedEvent = await Event.findByIdAndUpdate(
             eventId,
@@ -351,14 +392,20 @@ router.patch('/finalize/:id', async (req, res) => {
 });
 
 /**
- * @route   DELETE /api/events/:id
- * @desc    Delete an event (ADMIN)
- * @access  Private
+ * @route   DELETE /api/events/:id (Unchanged)
+ * @desc    Delete an event (ADMIN)
+ * @access  Private
  */
 router.delete('/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
+        
+        // Ensure ID is valid before attempting findByIdAndDelete
+        if (!mongoose.Types.ObjectId.isValid(eventId)) {
+            return res.status(404).json({ message: 'Event not found or invalid ID format.' });
+        }
+
         const result = await Event.findByIdAndDelete(eventId);
 
         if (!result) {
@@ -379,14 +426,19 @@ router.delete('/:id', async (req, res) => {
 });
 
 /**
- * @route   PUT /api/events/archive/:id
- * @desc    Update archive links (media links) for a past event (ADMIN)
- * @access  Private
+ * @route   PUT /api/events/archive/:id (Unchanged)
+ * @desc    Update archive links (media links) for a past event (ADMIN)
+ * @access  Private
  */
 router.put('/archive/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
     try {
         const eventId = req.params.id; 
+        
+        // Ensure ID is valid before attempting findByIdAndUpdate
+        if (!mongoose.Types.ObjectId.isValid(eventId)) {
+            return res.status(404).json({ message: 'Archive event not found or invalid ID format.' });
+        }
         
         // Only update the specific fields passed from the admin UI
         const { title, photoLink, videoLink, resourceLink } = req.body;
