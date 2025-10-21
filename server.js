@@ -20,14 +20,17 @@ import profileRoutes from './routes/profileRoutes.js';
 import galleryRoutes from './routes/galleryRoutes.js';
 import contactRoutes from './routes/contact.route.js';
 import projectRoutes from './routes/projectRoutes.js';
-import teacherRoutes from './routes/teacherRoutes.js';
+import teacherRoutes from './routes/teacherRoutes.js'; // This is used correctly
+// -----------------------------------------------------------------
+// We are NOT using 'alumniRoutes.js', so we'll add the logic here.
+// -----------------------------------------------------------------
 import visitorRoutes from './routes/visitors.js';
 import donationRoutes from './routes/donationRoutes.js'; 
 import careerProfileRoutes from './routes/careerProfileRoutes.js';
 import jobRoutes from './routes/jobRoutes.js'; 
 import Event from './models/Event.js'; 
 import statsRoutes from './routes/statsRoutes.js';
-import sgMail from '@sendgrid/mail'; // ⭐ Ensure SendGrid is imported here
+import sgMail from '@sendgrid/mail'; 
 import auth from './middleware/auth.js'; 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -43,11 +46,11 @@ mongoose.connect(MONGO_URI)
         console.error('❌ FATAL DB ERROR: Check MONGO_URI in .env and Render Secrets.', err);
     });
 
-// ⭐ SENDGRID CONFIGURATION & HELPER (Re-integrated from authController context) ⭐
+// ⭐ SENDGRID CONFIGURATION & HELPER (Unchanged) ⭐
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const sendCongratulationEmail = async (toEmail, userName) => {
-    const fromEmail = 'mcaigitalumni@gmail.com'; // ⭐ Set the required sender email
+    const fromEmail = 'mcaigitalumni@gmail.com'; 
     const subject = '🎉 Congratulations! Your Alumni Account is Verified!';
     const html = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -128,6 +131,7 @@ app.use((req, res, next) => {
     req.io = io;
     next();
 });
+// ... (All socket.io helper functions are unchanged) ...
 const getUpdatedEvents = async (userId) => {
     try {
         const registrations = await RegistrationPayment.find({ 
@@ -189,14 +193,14 @@ if (!process.env.JWT_SECRET) {
 }
 console.log('JWT Secret is loaded.');
 
-// --- ROUTING (Unchanged) ---
+// --- ROUTING ---
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/teachers', teacherRoutes);
+app.use('/api/teachers', teacherRoutes); // <-- This is why teachers work
 app.use('/api/visitors', visitorRoutes);
 app.use('/api/donate', donationRoutes); 
 app.use('/api/career-profile', careerProfileRoutes);
@@ -216,7 +220,8 @@ const isSuperAdmin = (req, res, next) => {
 // ------------------------------------
 
 
-// --- ALUMNI ROUTES (UPDATED) ---
+// --- ALUMNI ROUTES ---
+// GET route (Unchanged)
 app.get('/api/alumni', auth, async (req, res) => {
     try {
         const alumni = await Alumni.find({}).sort({ createdAt: -1 }); 
@@ -226,6 +231,7 @@ app.get('/api/alumni', auth, async (req, res) => {
     }
 });
 
+// PATCH route (Unchanged)
 app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
         const alumnus = await Alumni.findById(req.params.id);
@@ -234,17 +240,14 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
             return res.status(404).json({ message: 'Alumnus not found' });
         }
         
-        // ⭐ CRITICAL CHECK: Only send email if they are currently unverified 
         const wasUnverified = !alumnus.isVerified;
 
         alumnus.isVerified = true;
         await alumnus.save();
 
-        // ⭐ ACTION: Send congratulation email after successful verification ⭐
         if (wasUnverified) {
             await sendCongratulationEmail(alumnus.email, alumnus.fullName);
         }
-        // ⭐ END ACTION ⭐
 
         res.json(alumnus); 
 
@@ -256,9 +259,29 @@ app.patch('/api/alumni/:id/verify', auth, isSuperAdmin, async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
+
+// --- NEW DELETE ROUTE (This was missing) ---
+app.delete('/api/alumni/:id', auth, isSuperAdmin, async (req, res) => {
+    try {
+        const alumni = await Alumni.findById(req.params.id);
+
+        if (!alumni) {
+            return res.status(404).json({ message: 'Alumni not found' });
+        }
+
+        // Use findByIdAndDelete to remove the document
+        await Alumni.findByIdAndDelete(req.params.id);
+
+        res.status(200).json({ message: 'Alumni profile deleted successfully' });
+
+    } catch (error) {
+        console.error('Error deleting alumni:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
 // ------------------------------------
 
-// --- TEACHER VERIFICATION ROUTE (UPDATED) ---
+// --- TEACHER VERIFICATION ROUTE (Unchanged) ---
 app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
     try {
         const teacher = await Teacher.findById(req.params.id);
@@ -267,19 +290,16 @@ app.patch('/api/teachers/:id/verify', auth, isSuperAdmin, async (req, res) => {
             return res.status(404).json({ message: 'Teacher not found' });
         }
         
-        // ⭐ CRITICAL CHECK: Only send email if they are currently unverified 
         const wasUnverified = !teacher.isVerified;
 
         teacher.isVerified = true;
         await teacher.save();
         
-        // ⭐ ACTION: Send congratulation email after successful verification ⭐
         if (wasUnverified) {
             await sendCongratulationEmail(teacher.email, teacher.fullName);
         }
-        // ⭐ END ACTION ⭐
 
-        res.json(teacher); // Send back the updated teacher data
+        res.json(teacher); 
 
     } catch (error) {
         console.error('Error verifying teacher:', error);
