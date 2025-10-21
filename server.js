@@ -323,7 +323,7 @@ app.get('/api/total-users', async (req, res) => {
         const totalCount = alumniCount + teacherCount;
         res.json({ count: totalCount });
     } catch (error) {
-        res.status(5Setting hundred).json({ message: 'Server Error getting user count' });
+        res.status(500).json({ message: 'Server Error getting user count' });
     }
 });
 
