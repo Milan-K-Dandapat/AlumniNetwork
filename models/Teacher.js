@@ -55,6 +55,17 @@ const teacherSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+
+    // --- (*** NEW FIELD ***) ---
+    // This field will store the user's permission level
+    role: {
+        type: String,
+        enum: ['user', 'admin'], // 'superadmin' is just a logic check on the email
+        default: 'user',
+        required: true
+    },
+    // ---------------------------
+
     otp: {
         type: String,
     },

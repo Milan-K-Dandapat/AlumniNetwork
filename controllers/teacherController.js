@@ -1,14 +1,17 @@
 import Teacher from '../models/Teacher.js';
-// We no longer need to import 'auth' here
-// import auth from '../middleware/auth.js'; 
+// We don't need to import 'auth' here; the routes file handles that.
 
-// --- UPDATED ---
-// Removed the 'auth' middleware wrapper.
-// Your 'teacherRoutes.js' file is already handling authentication.
+const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com';
+
+/**
+ * @desc    Get all teacher profiles (both verified and unverified)
+ * @route   GET /api/teachers
+ * @access  Private (Requires auth)
+ */
 export const getTeachers = async (req, res) => {
     try {
-        // This query is CORRECT. You need to find all teachers ({})
-        // so that you can see the unverified ones in the admin panel.
+        // This query is correct. It finds all teachers ({})
+        // so that admins can see unverified users.
         const teachers = await Teacher.find({}).sort({ fullName: 1 });
         
         res.status(200).json(teachers);
@@ -18,11 +21,24 @@ export const getTeachers = async (req, res) => {
     }
 };
 
-// --- NEW ---
-// This function verifies a teacher user
-// It's triggered by PATCH /api/teachers/:id/verify
+/**
+ * @desc    Verify a teacher profile
+ * @route   PATCH /api/teachers/:id/verify
+ * @access  Private (Admin / SuperAdmin)
+ */
 export const verifyTeacher = async (req, res) => {
     try {
+        // --- NEW SECURITY CHECK ---
+        // Get user details from the auth middleware
+        const userRole = req.user.role;
+        const isSuperAdmin = req.user.email === SUPER_ADMIN_EMAIL;
+
+        // Only allow 'admin' or 'superadmin' to verify
+        if (userRole !== 'admin' && !isSuperAdmin) {
+             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        }
+        // --- END SECURITY CHECK ---
+
         const teacher = await Teacher.findById(req.params.id);
 
         if (!teacher) {
@@ -42,9 +58,11 @@ export const verifyTeacher = async (req, res) => {
 };
 
 
-// --- NEW ---
-// This function deletes a teacher user
-// It's triggered by DELETE /api/teachers/:id
+/**
+ * @desc    Delete a teacher profile
+ * @route   DELETE /api/teachers/:id
+ * @access  Private (Admin / SuperAdmin)
+ */
 export const deleteTeacher = async (req, res) => {
     try {
         const teacher = await Teacher.findById(req.params.id);
@@ -53,10 +71,29 @@ export const deleteTeacher = async (req, res) => {
             return res.status(404).json({ message: 'Teacher not found' });
         }
 
-        // The most direct way to delete the document
-        await Teacher.findByIdAndDelete(req.params.id);
+        // --- NEW SECURITY CHECK ---
+        const userRole = req.user.role;
+        const isSuperAdmin = req.user.email === SUPER_ADMIN_EMAIL;
 
-        res.status(200).json({ message: 'Teacher profile deleted successfully' });
+        if (isSuperAdmin) {
+            // Super admin can delete anyone
+            await Teacher.findByIdAndDelete(req.params.id);
+            return res.status(200).json({ message: 'Teacher profile deleted successfully' });
+        } 
+        
+        if (userRole === 'admin') {
+            // Admin can ONLY delete unverified users
+            if (teacher.isVerified) {
+                return res.status(403).json({ message: 'Access denied. Admins can only delete unverified users.' });
+            }
+            
+            await Teacher.findByIdAndDelete(req.params.id);
+            return res.status(200).json({ message: 'Teacher profile deleted successfully' });
+        }
+        
+        // If not super admin or admin, deny access
+        return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        // --- END SECURITY CHECK ---
 
     } catch (error) {
         console.error('Error deleting teacher:', error);

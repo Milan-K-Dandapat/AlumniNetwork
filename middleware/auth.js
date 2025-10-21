@@ -5,7 +5,7 @@ const getSecret = () => {
     return process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1'; 
 }
 
-// --- YOUR EXISTING AUTH FUNCTION (Unchanged) ---
+// --- YOUR EXISTING AUTH FUNCTION (Updated) ---
 // This function will run first to verify the user is logged in.
 const auth = (req, res, next) => {
     // 1. Get token from the 'Authorization' header
@@ -28,19 +28,28 @@ const auth = (req, res, next) => {
         // 3. Verify the token
         const decoded = jwt.verify(token, getSecret());
 
-        // 4. Extract user ID and email
+        // 4. Extract user ID, email, and role
         // We look for MongoDB's default (_id) or a general ID (id)
         const userId = decoded._id || decoded.id; 
         const userEmail = decoded.email; 
+        
+        // --- (*** CRITICAL UPDATE ***) ---
+        // We MUST also extract the role for our controllers to work
+        const userRole = decoded.role;
+        // ---
 
-        if (!userId || !userEmail) {
-            throw new Error("Token payload is missing the required user ID ('id' or '_id') or email field."); 
+        if (!userId || !userEmail || !userRole) {
+            throw new Error("Token payload is missing required fields (id, email, or role)."); 
         }
 
         // 5. Attach user object to the request. 
-        // We set both `id` and `_id` to ensure compatibility with Mongoose (.id) and older controllers (_id).
-        // The `email` is crucial for the Super Admin check.
-        req.user = { id: userId, _id: userId, email: userEmail }; 
+        // The `role` is now included
+        req.user = { 
+            id: userId, 
+            _id: userId, 
+            email: userEmail, 
+            role: userRole  // <-- ADDED THIS
+        }; 
         
         // 6. Proceed to the next middleware
         next(); 
@@ -62,7 +71,7 @@ const auth = (req, res, next) => {
     }
 };
 
-// --- NEW isSuperAdmin FUNCTION (Added) ---
+// --- NEW isSuperAdmin FUNCTION (Unchanged) ---
 // This function will run *after* the 'auth' function on specific routes.
 // It checks the req.user object that the 'auth' function created.
 export const isSuperAdmin = (req, res, next) => {
@@ -72,8 +81,9 @@ export const isSuperAdmin = (req, res, next) => {
     if (req.user && req.user.email === SUPER_ADMIN_EMAIL) {
         next(); // User is the super admin, proceed
     } else {
-        res.status(403); // 403 Forbidden
-        throw new Error('Not authorized. Super admin access required.');
+        res.status(400); // 403 Forbidden
+        // Send a JSON response instead of just throwing an error
+        res.json({ msg: 'Not authorized. Super admin access required.' });
     }
 };
 

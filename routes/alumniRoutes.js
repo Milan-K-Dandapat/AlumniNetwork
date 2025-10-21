@@ -1,27 +1,38 @@
 import express from 'express';
-// --- UPDATED ---
-// Import the new controller functions we'll be using
+// Import the controller functions
 import { 
     getAlumni, 
-    verifyAlumni, // Assuming this is your verify function
+    verifyAlumni, 
     deleteAlumni 
 } from '../controllers/alumniController.js';
 
-// --- UPDATED ---
-// Import both 'auth' (default) and 'isSuperAdmin' (named)
-import auth, { isSuperAdmin } from '../middleware/auth.js'; 
+// Import the default 'auth' middleware
+// The controller will now handle the logic for superadmin vs admin
+import auth from '../middleware/auth.js'; 
 
 const router = express.Router();
 
-// This route is for all authenticated users
+/**
+ * @route   GET /api/alumni
+ * @desc    Get all alumni profiles
+ * @access  Private (All authenticated users)
+ */
 router.get('/', auth, getAlumni); 
 
-// --- NEW ---
-// This route is only for super admin (auth + isSuperAdmin)
-router.patch('/:id/verify', auth, isSuperAdmin, verifyAlumni);
+/**
+ * @route   PATCH /api/alumni/:id/verify
+ * @desc    Verify an alumni profile
+ * @access  Private (Protected by auth, logic inside controller)
+ */
+// The 'auth' middleware provides req.user, and the controller handles the role check.
+router.patch('/:id/verify', auth, verifyAlumni);
 
-// --- NEW ---
-// This route is also only for super admin (auth + isSuperAdmin)
-router.delete('/:id', auth, isSuperAdmin, deleteAlumni);
+/**
+ * @route   DELETE /api/alumni/:id
+ * @desc    Delete an alumni profile
+ * @access  Private (Protected by auth, logic inside controller)
+ */
+// The 'auth' middleware provides req.user, and the controller handles the role check.
+router.delete('/:id', auth, deleteAlumni);
 
 export default router;

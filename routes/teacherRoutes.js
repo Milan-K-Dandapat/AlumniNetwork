@@ -1,6 +1,5 @@
 import express from 'express';
-// --- UPDATED ---
-// Import the new controller functions
+// Import the controller functions
 import { 
     getTeachers,
     verifyTeacher, // Add this
@@ -8,35 +7,34 @@ import {
 } from '../controllers/teacherController.js'; 
 
 // --- UPDATED ---
-// Import both 'auth' (default) and 'isSuperAdmin' (named)
-import auth, { isSuperAdmin } from '../middleware/auth.js'; 
+// We only need the default 'auth' middleware.
+// The controller will handle the logic for superadmin vs admin.
+import auth from '../middleware/auth.js'; 
 
 const router = express.Router();
 
 /**
  * @route   GET /api/teachers
- * @desc    Get all verified teacher/faculty profiles for the directory
- * @access  Private (Requires JWT Token)
+ * @desc    Get all teacher profiles
+ * @access  Private (All authenticated users)
  */
 // This route is for all authenticated users
 router.get('/', auth, getTeachers); 
 
-// --- NEW ---
 /**
  * @route   PATCH /api/teachers/:id/verify
- * @desc    Verify a teacher profile (Super Admin only)
- * @access  Private/SuperAdmin
+ * @desc    Verify a teacher profile
+ * @access  Private (Protected by auth, logic inside controller)
  */
-// This route is only for super admin
-router.patch('/:id/verify', auth, isSuperAdmin, verifyTeacher);
+// The 'auth' middleware provides req.user, and the controller handles the role check.
+router.patch('/:id/verify', auth, verifyTeacher);
 
-// --- NEW ---
 /**
  * @route   DELETE /api/teachers/:id
- * @desc    Delete a teacher profile (Super Admin only)
- * @access  Private/SuperAdmin
+ * @desc    Delete a teacher profile
+ * @access  Private (Protected by auth, logic inside controller)
  */
-// This route is also only for super admin
-router.delete('/:id', auth, isSuperAdmin, deleteTeacher);
+// The 'auth' middleware provides req.user, and the controller handles the role check.
+router.delete('/:id', auth, deleteTeacher);
 
 export default router;
