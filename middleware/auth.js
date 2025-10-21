@@ -5,7 +5,7 @@ const getSecret = () => {
     return process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1'; 
 }
 
-// --- YOUR EXISTING AUTH FUNCTION (Updated) ---
+// --- YOUR EXISTING AUTH FUNCTION (Correct) ---
 // This function will run first to verify the user is logged in.
 const auth = (req, res, next) => {
     // 1. Get token from the 'Authorization' header
@@ -33,8 +33,7 @@ const auth = (req, res, next) => {
         const userId = decoded._id || decoded.id; 
         const userEmail = decoded.email; 
         
-        // --- (*** CRITICAL UPDATE ***) ---
-        // We MUST also extract the role for our controllers to work
+        // --- This part is crucial and correct ---
         const userRole = decoded.role;
         // ---
 
@@ -48,7 +47,7 @@ const auth = (req, res, next) => {
             id: userId, 
             _id: userId, 
             email: userEmail, 
-            role: userRole  // <-- ADDED THIS
+            role: userRole  // <-- Correctly added
         }; 
         
         // 6. Proceed to the next middleware
@@ -71,7 +70,7 @@ const auth = (req, res, next) => {
     }
 };
 
-// --- NEW isSuperAdmin FUNCTION (Unchanged) ---
+// --- isSuperAdmin FUNCTION (Minor Update) ---
 // This function will run *after* the 'auth' function on specific routes.
 // It checks the req.user object that the 'auth' function created.
 export const isSuperAdmin = (req, res, next) => {
@@ -81,7 +80,9 @@ export const isSuperAdmin = (req, res, next) => {
     if (req.user && req.user.email === SUPER_ADMIN_EMAIL) {
         next(); // User is the super admin, proceed
     } else {
-        res.status(400); // 403 Forbidden
+        // --- UPDATED: Status code changed to 403 ---
+        res.status(403); // 403 Forbidden is more appropriate here
+        // ---
         // Send a JSON response instead of just throwing an error
         res.json({ msg: 'Not authorized. Super admin access required.' });
     }
