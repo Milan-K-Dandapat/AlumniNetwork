@@ -367,9 +367,9 @@ export const loginOtpVerify = async (req, res) => {
 
         // --- Create JWT Payload with ACTUAL role from database ---
         const payload = {
-            id: user._id,
+            id: user._id, // Use user._id which is guaranteed by Mongoose
             email: user.email,
-            role: user.role // Use the role fetched from the user document
+            role: user.role // <-- Use the role fetched from the user document
         };
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         // ---
@@ -384,7 +384,7 @@ export const loginOtpVerify = async (req, res) => {
                 fullName: user.fullName,
                 userType: 'alumni', // Keep for frontend distinction if needed
                 alumniCode: user.alumniCode,
-                role: user.role // Include the actual role in the response
+                role: user.role // <-- Include the actual role in the response
             }
             // ---
         });
@@ -425,9 +425,9 @@ export const loginOtpVerifyTeacher = async (req, res) => {
 
         // --- Create JWT Payload with ACTUAL role from database ---
         const payload = {
-            id: user._id,
+            id: user._id, // Use user._id which is guaranteed by Mongoose
             email: user.email,
-            role: user.role // Use the role fetched from the user document
+            role: user.role // <-- Use the role fetched from the user document
         };
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         // ---
@@ -442,7 +442,7 @@ export const loginOtpVerifyTeacher = async (req, res) => {
                 fullName: user.fullName,
                 userType: 'teacher', // Keep for frontend distinction
                 alumniCode: user.teacherCode, // Map teacherCode for consistency
-                role: user.role // Include the actual role in the response
+                role: user.role // <-- Include the actual role in the response
             }
             // ---
         });
@@ -476,9 +476,9 @@ export const login = async (req, res) => {
 
         // --- Create JWT Payload with ACTUAL role from database ---
         const payload = {
-            id: user._id,
+            id: user._id, // Use user._id which is guaranteed by Mongoose
             email: user.email,
-            role: user.role // Use the role fetched from the user document
+            role: user.role // <-- Use the role fetched from the user document
         };
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         // ---
@@ -492,7 +492,7 @@ export const login = async (req, res) => {
                 email: user.email,
                 fullName: user.fullName,
                 alumniCode: user.alumniCode,
-                role: user.role // Include the actual role in the response
+                role: user.role // <-- Include the actual role in the response
             }
             // ---
         });
