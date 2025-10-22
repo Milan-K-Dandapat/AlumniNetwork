@@ -1,16 +1,15 @@
 import express from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
-import mongoose from 'mongoose'; // 💡 NEW: Import Mongoose to validate/handle ObjectId
+import mongoose from 'mongoose';
 import RegistrationPayment from '../models/RegistrationPayment.js';
 import Event from '../models/Event.js';
-// Assuming authentication middleware imports if they were used:
-// import { protect, admin } from '../middleware/authMiddleware.js'; 
+// 💡 SECURED: Import the auth and isAdmin middleware
+import auth, { isAdmin } from '../middleware/auth.js'; 
 
 const router = express.Router();
 
-// Initialize Razorpay with your credentials from environment variables
-// 🛑 CRITICAL FIX: Add check for ENV variables to prevent server crash
+// --- Razorpay Setup (Unchanged) ---
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
@@ -22,26 +21,20 @@ if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
     });
 } else {
     console.warn("⚠️ RAZORPAY NOT INITIALIZED: Missing KEY_ID or KEY_SECRET. Payment routes will fail.");
-    // Mocking object to prevent server crash during module loading
     razorpay = { orders: { create: async () => { throw new Error("Razorpay not configured."); } } };
 }
 
-// Utility function to fetch and emit the user's updated event list (Unchanged)
+// --- WebSocket Utility (Unchanged) ---
 const fetchAndEmitUpdatedEvents = async (io, userId) => {
-    // NOTE: This utility function requires io and a valid userId
     if (!io || !userId) return;
-
     try {
-        // Fetch the user's complete updated list of SUCCESSFUL registrations
         const updatedEventsList = await RegistrationPayment.find({ 
             userId: userId, 
             paymentStatus: 'success' 
         })
-        // Assuming 'eventId' is a reference (ObjectId) to the Event model
         .populate('eventId', 'title date') 
         .exec();
 
-        // Map the result to a cleaner structure that the frontend expects
         const registeredEvents = updatedEventsList.map(reg => ({
             id: reg.eventId?._id,
             name: reg.eventId?.title,
@@ -49,7 +42,6 @@ const fetchAndEmitUpdatedEvents = async (io, userId) => {
             registrationDate: reg.createdAt,
         }));
 
-        // Emit the personalized event to the user's dashboard
         io.emit(`eventsUpdated:${userId}`, registeredEvents); 
         console.log(`--- Socket.IO: Emitted eventsUpdated:${userId} for ${registeredEvents.length} events ---`);
     } catch (error) {
@@ -59,205 +51,12 @@ const fetchAndEmitUpdatedEvents = async (io, userId) => {
 
 // ====================================================================
 // --- PUBLIC FACING & PAYMENT ROUTES ---
+// (These routes are correctly left PUBLIC)
 // ====================================================================
 
 /**
- * @route   GET /api/events/:id 💡 CRITICAL FIX: Fetch Single Event Details
- * @desc    Get a single event by ID (PUBLIC)
- * @access  Public
- */
-router.get('/:id', async (req, res) => {
-    const eventId = req.params.id;
-
-    // 1. Validate if the ID format is a valid MongoDB ObjectId structure
-    if (!mongoose.Types.ObjectId.isValid(eventId)) {
-        // This addresses the 404/Bad Request for non-ObjectId strings like 'unxfkmcd'
-        return res.status(404).json({ message: 'Event not found or invalid ID format.' });
-    }
-    
-    try {
-        // 2. Use findById, which correctly handles the validated ObjectId string
-        const event = await Event.findById(eventId); 
-
-        if (!event) {
-            return res.status(404).json({ message: 'Event not found.' });
-        }
-
-        res.status(200).json(event);
-
-    } catch (err) {
-        console.error('Error fetching single event details:', err);
-        // This catch block handles potential server/database issues
-        res.status(500).json({ message: 'Server error fetching event details.' });
-    }
-});
-
-/**
- * @route   POST /api/register-free-event (Unchanged)
- * @desc    Handles registration for events with a total amount of 0
- * @access  Public
- */
-router.post('/register-free-event', async (req, res) => {
-    try {
-        const { eventId, userId } = req.body; 
-
-        if (!eventId || eventId === 'N/A') {
-            return res.status(400).json({ message: 'A valid Event ID is required for registration.' });
-        }
-
-        const newRegistration = new RegistrationPayment({
-            ...req.body,
-            paymentStatus: 'success',
-            razorpay_order_id: `free_event_${Date.now()}`
-        });
-
-        await newRegistration.save();
-
-        // 🚀 CRITICAL: Emit WebSocket event for Real-Time Update
-        if (req.io && userId) {
-            await fetchAndEmitUpdatedEvents(req.io, userId);
-        }
-        
-        res.status(201).json({ message: 'Free registration successful!', data: newRegistration });
-
-    } catch (error) {
-        console.error('Error in free event registration:', error);
-        res.status(500).json({ message: 'Server error during free registration.' });
-    }
-});
-
-/**
- * @route   POST /api/create-order (Unchanged)
- * @desc    Creates a Razorpay order for paid registrations
- * @access  Public
- */
-router.post('/create-order', async (req, res) => {
-    try {
-        const { amount, eventId } = req.body;
-
-        if (!eventId || eventId === 'N/A') {
-            return res.status(400).json({ message: 'A valid Event ID is required to create an order.' });
-        }
-
-        const registration = new RegistrationPayment({
-            ...req.body,
-            paymentStatus: 'created',
-        });
-        await registration.save();
-
-        const options = {
-            amount: amount * 100,
-            currency: 'INR',
-            receipt: registration._id.toString(),
-        };
-
-        // NOTE: This call will fail if Razorpay is not initialized due to missing keys
-        const order = await razorpay.orders.create(options); 
-
-        registration.razorpay_order_id = order.id;
-        await registration.save();
-
-        res.json({
-            order,
-            registrationId: registration._id
-        });
-
-    } catch (error) {
-        console.error('Error creating Razorpay order:', error);
-        res.status(500).json({ message: 'Failed to create payment order.' });
-    }
-});
-
-/**
- * @route   POST /api/verify-payment (Unchanged)
- * @desc    Verifies the payment signature from Razorpay after payment
- * @access  Public
- */
-router.post('/verify-payment', async (req, res) => {
-    try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, registrationId } = req.body;
-
-        const registrationToUpdate = await RegistrationPayment.findById(registrationId);
-        
-        if (!registrationToUpdate) {
-             return res.status(404).json({ success: false, message: 'Registration record not found.' });
-        }
-        
-        const body = razorpay_order_id + "|" + razorpay_payment_id;
-        const expectedSignature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(body.toString())
-            .digest('hex');
-
-        if (expectedSignature === razorpay_signature) {
-            
-            registrationToUpdate.paymentStatus = 'success';
-            registrationToUpdate.razorpay_payment_id = razorpay_payment_id;
-            registrationToUpdate.razorpay_signature = razorpay_signature;
-            await registrationToUpdate.save();
-            
-            const userId = registrationToUpdate.userId; 
-
-            // 🚀 CRITICAL: Emit WebSocket event for Real-Time Update
-            if (req.io && userId) {
-                await fetchAndEmitUpdatedEvents(req.io, userId);
-            }
-
-            res.status(200).json({ success: true, message: 'Payment verified successfully.' });
-        } else {
-            // Payment failed or signature mismatch
-            registrationToUpdate.paymentStatus = 'failed';
-            await registrationToUpdate.save();
-            res.status(400).json({ success: false, message: 'Payment verification failed.' });
-        }
-    } catch (error) {
-        console.error('Error verifying payment:', error);
-        res.status(500).json({ message: 'Server error during payment verification.' });
-    }
-});
-
-// NEW: Endpoint to fetch the registered events for a specific user (Required by Dashboard)
-/**
- * @route   GET /api/events/my-registrations (Unchanged)
- * @desc    Get events registered by the authenticated user
- * @access  Private (Requires authentication/protection middleware)
- */
-router.get('/my-registrations', async (req, res) => {
-    // Assuming req.user is set by authentication middleware
-    const userId = req.user?._id; 
-
-    if (!userId) {
-        return res.status(401).json({ message: 'Not authorized or User ID missing.' });
-    }
-    
-    try {
-        const events = await RegistrationPayment.find({ 
-            userId: userId,
-            paymentStatus: 'success'
-        })
-        .populate('eventId', 'title date')
-        .sort({ createdAt: -1 });
-
-        // The dashboard expects a clean array of event objects: [{id, name, date, ...}]
-        const registeredEvents = events.map(reg => ({
-            id: reg.eventId?._id,
-            name: reg.eventId?.title,
-            date: reg.eventId?.date,
-            registrationDate: reg.createdAt,
-        }));
-
-        res.json(registeredEvents);
-    } catch (error) {
-        console.error('Error fetching user registrations:', error);
-        res.status(500).json({ message: 'Server Error fetching user registrations' });
-    }
-});
-
-
-/**
- * @route   GET /api/events/upcoming (Unchanged)
- * @desc    Get all non-archived events (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/upcoming (PUBLIC)
+ * @desc    Get all non-archived events
  */
 router.get('/upcoming', async (req, res) => {
     try {
@@ -270,13 +69,11 @@ router.get('/upcoming', async (req, res) => {
 });
 
 /**
- * @route   GET /api/events/past (Unchanged)
- * @desc    Get all archived events (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/past (PUBLIC)
+ * @desc    Get all archived events
  */
 router.get('/past', async (req, res) => {
     try {
-        // Fetch events where isArchived is true, sort by date descending
         const events = await Event.find({ isArchived: true }).sort({ date: -1 });
         res.json(events);
     } catch (error) {
@@ -285,23 +82,184 @@ router.get('/past', async (req, res) => {
     }
 });
 
+/**
+ * @route   GET /api/events/:id (PUBLIC)
+ * @desc    Get a single event by ID
+ */
+router.get('/:id', async (req, res) => {
+    const eventId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        return res.status(404).json({ message: 'Event not found or invalid ID format.' });
+    }
+    
+    try {
+        const event = await Event.findById(eventId); 
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found.' });
+        }
+        res.status(200).json(event);
+    } catch (err) {
+        console.error('Error fetching single event details:', err);
+        res.status(500).json({ message: 'Server error fetching event details.' });
+    }
+});
+
+/**
+ * @route   POST /api/events/register-free-event (PUBLIC)
+ * @desc    Handles registration for events with a total amount of 0
+ */
+router.post('/register-free-event', async (req, res) => {
+    try {
+        const { eventId, userId } = req.body; 
+        if (!eventId || eventId === 'N/A') {
+            return res.status(400).json({ message: 'A valid Event ID is required for registration.' });
+        }
+        const newRegistration = new RegistrationPayment({
+            ...req.body,
+            paymentStatus: 'success',
+            razorpay_order_id: `free_event_${Date.now()}`
+        });
+        await newRegistration.save();
+
+        if (req.io && userId) {
+            await fetchAndEmitUpdatedEvents(req.io, userId);
+        }
+        
+        res.status(201).json({ message: 'Free registration successful!', data: newRegistration });
+    } catch (error) {
+        console.error('Error in free event registration:', error);
+        res.status(500).json({ message: 'Server error during free registration.' });
+    }
+});
+
+/**
+ * @route   POST /api/events/create-order (PUBLIC)
+ * @desc    Creates a Razorpay order for paid registrations
+ */
+router.post('/create-order', async (req, res) => {
+    try {
+        const { amount, eventId } = req.body;
+        if (!eventId || eventId === 'N/A') {
+            return res.status(400).json({ message: 'A valid Event ID is required to create an order.' });
+        }
+        const registration = new RegistrationPayment({
+            ...req.body,
+            paymentStatus: 'created',
+        });
+        await registration.save();
+
+        const options = {
+            amount: amount * 100,
+            currency: 'INR',
+            receipt: registration._id.toString(),
+        };
+
+        const order = await razorpay.orders.create(options); 
+        registration.razorpay_order_id = order.id;
+        await registration.save();
+        res.json({
+            order,
+            registrationId: registration._id
+        });
+    } catch (error) {
+        console.error('Error creating Razorpay order:', error);
+        res.status(500).json({ message: 'Failed to create payment order.' });
+    }
+});
+
+/**
+ * @route   POST /api/events/verify-payment (PUBLIC)
+ * @desc    Verifies the payment signature from Razorpay after payment
+ */
+router.post('/verify-payment', async (req, res) => {
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, registrationId } = req.body;
+        const registrationToUpdate = await RegistrationPayment.findById(registrationId);
+        
+        if (!registrationToUpdate) {
+            return res.status(404).json({ success: false, message: 'Registration record not found.' });
+        }
+        
+        const body = razorpay_order_id + "|" + razorpay_payment_id;
+        const expectedSignature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(body.toString())
+            .digest('hex');
+
+        if (expectedSignature === razorpay_signature) {
+            registrationToUpdate.paymentStatus = 'success';
+            registrationToUpdate.razorpay_payment_id = razorpay_payment_id;
+            registrationToUpdate.razorpay_signature = razorpay_signature;
+            await registrationToUpdate.save();
+            
+            const userId = registrationToUpdate.userId; 
+            if (req.io && userId) {
+                await fetchAndEmitUpdatedEvents(req.io, userId);
+            }
+            res.status(200).json({ success: true, message: 'Payment verified successfully.' });
+        } else {
+            registrationToUpdate.paymentStatus = 'failed';
+            await registrationToUpdate.save();
+            res.status(400).json({ success: false, message: 'Payment verification failed.' });
+        }
+    } catch (error) {
+        console.error('Error verifying payment:', error);
+        res.status(500).json({ message: 'Server error during payment verification.' });
+    }
+});
 
 // ====================================================================
-// --- ADMIN PANEL ROUTES ---
+// --- PRIVATE USER ROUTES ---
+// (These routes require a user to be logged in)
 // ====================================================================
 
 /**
- * @route   POST /api/events (Unchanged)
- * @desc    Create a new event (ADMIN)
- * @access  Private
+ * @route   GET /api/events/my-registrations (PRIVATE)
+ * @desc    Get events registered by the authenticated user
  */
-router.post('/', async (req, res) => {
-    // NOTE: Apply authentication middleware here
+// 💡 SECURED: Added 'auth' middleware to protect this route
+router.get('/my-registrations', auth, async (req, res) => {
+    const userId = req.user?._id; 
+    if (!userId) {
+        return res.status(401).json({ message: 'Not authorized or User ID missing.' });
+    }
+    
+    try {
+        const events = await RegistrationPayment.find({ 
+            userId: userId,
+            paymentStatus: 'success'
+        })
+        .populate('eventId', 'title date')
+        .sort({ createdAt: -1 });
+
+        const registeredEvents = events.map(reg => ({
+            id: reg.eventId?._id,
+            name: reg.eventId?.title,
+            date: reg.eventId?.date,
+            registrationDate: reg.createdAt,
+        }));
+        res.json(registeredEvents);
+    } catch (error) {
+        console.error('Error fetching user registrations:', error);
+        res.status(500).json({ message: 'Server Error fetching user registrations' });
+    }
+});
+
+// ====================================================================
+// --- ADMIN PANEL ROUTES ---
+// (These routes are now secured and require ADMIN access)
+// ====================================================================
+
+/**
+ * @route   POST /api/events (ADMIN)
+ * @desc    Create a new event
+ */
+// 💡 SECURED: Added '[auth, isAdmin]' middleware
+router.post('/', [auth, isAdmin], async (req, res) => {
     try {
         const newEvent = new Event(req.body);
         await newEvent.save();
 
-        // 🚀 CRITICAL: Emit WebSocket event to all clients
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (POST) ---');
@@ -315,36 +273,28 @@ router.post('/', async (req, res) => {
 });
 
 /**
- * @route   PUT /api/events/:id (Unchanged)
- * @desc    Update an existing event (ADMIN)
- * @access  Private
+ * @route   PUT /api/events/:id (ADMIN)
+ * @desc    Update an existing event
  */
-router.put('/:id', async (req, res) => {
-    // NOTE: Apply authentication middleware here
+// 💡 SECURED: Added '[auth, isAdmin]' middleware
+router.put('/:id', [auth, isAdmin], async (req, res) => {
     try {
         const eventId = req.params.id; 
-        
-        // Ensure ID is valid before attempting findByIdAndUpdate
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return res.status(404).json({ message: 'Event not found or invalid ID format.' });
         }
-
         const updatedEvent = await Event.findByIdAndUpdate(
             eventId, 
             req.body, 
             { new: true, runValidators: true }
         );
-
         if (!updatedEvent) {
             return res.status(404).json({ message: 'Event not found.' });
         }
-        
-        // 🚀 CRITICAL: Emit WebSocket event to all clients
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (PUT) ---');
         }
-
         res.json(updatedEvent);
     } catch (error) {
         console.error('Error updating event:', error);
@@ -353,37 +303,28 @@ router.put('/:id', async (req, res) => {
 });
 
 /**
- * @route   PATCH /api/events/finalize/:id (Unchanged)
- * @desc    Move an event from Upcoming to Archived (ADMIN)
- * @access  Private
+ * @route   PATCH /api/events/finalize/:id (ADMIN)
+ * @desc    Move an event from Upcoming to Archived
  */
-router.patch('/finalize/:id', async (req, res) => { 
-    // NOTE: Apply authentication middleware here
+// 💡 SECURED: Added '[auth, isAdmin]' middleware
+router.patch('/finalize/:id', [auth, isAdmin], async (req, res) => { 
     try {
         const eventId = req.params.id;
-        
-        // Ensure ID is valid before attempting findByIdAndUpdate
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return res.status(404).json({ message: 'Event not found or invalid ID format.' });
         }
-
-        // Mark as archived and update optional media links passed in req.body
         const finalizedEvent = await Event.findByIdAndUpdate(
             eventId,
             { isArchived: true, ...req.body }, 
             { new: true }
         );
-
         if (!finalizedEvent) {
             return res.status(404).json({ message: 'Event not found.' });
         }
-        
-        // 🚀 CRITICAL: Emit WebSocket event to refresh both upcoming and past lists
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (FINALIZE) ---');
         }
-
         res.json(finalizedEvent);
     } catch (error) {
         console.error('Error finalizing event:', error);
@@ -392,32 +333,24 @@ router.patch('/finalize/:id', async (req, res) => {
 });
 
 /**
- * @route   DELETE /api/events/:id (Unchanged)
- * @desc    Delete an event (ADMIN)
- * @access  Private
+ * @route   DELETE /api/events/:id (ADMIN)
+ * @desc    Delete an event
  */
-router.delete('/:id', async (req, res) => {
-    // NOTE: Apply authentication middleware here
+// 💡 SECURED: Added '[auth, isAdmin]' middleware
+router.delete('/:id', [auth, isAdmin], async (req, res) => {
     try {
         const eventId = req.params.id; 
-        
-        // Ensure ID is valid before attempting findByIdAndDelete
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return res.status(404).json({ message: 'Event not found or invalid ID format.' });
         }
-
         const result = await Event.findByIdAndDelete(eventId);
-
         if (!result) {
             return res.status(404).json({ message: 'Event not found.' });
         }
-        
-        // 🚀 CRITICAL: Emit WebSocket event to all clients
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (DELETE) ---');
         }
-
         res.json({ message: 'Event deleted successfully.' });
     } catch (error) {
         console.error('Error deleting event:', error);
@@ -426,39 +359,29 @@ router.delete('/:id', async (req, res) => {
 });
 
 /**
- * @route   PUT /api/events/archive/:id (Unchanged)
- * @desc    Update archive links (media links) for a past event (ADMIN)
- * @access  Private
+ * @route   PUT /api/events/archive/:id (ADMIN)
+ * @desc    Update archive links (media links) for a past event
  */
-router.put('/archive/:id', async (req, res) => {
-    // NOTE: Apply authentication middleware here
+// 💡 SECURED: Added '[auth, isAdmin]' middleware
+router.put('/archive/:id', [auth, isAdmin], async (req, res) => {
     try {
         const eventId = req.params.id; 
-        
-        // Ensure ID is valid before attempting findByIdAndUpdate
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return res.status(404).json({ message: 'Archive event not found or invalid ID format.' });
         }
-        
-        // Only update the specific fields passed from the admin UI
         const { title, photoLink, videoLink, resourceLink } = req.body;
-
         const updatedArchive = await Event.findByIdAndUpdate(
             eventId, 
             { title, photoLink, videoLink, resourceLink }, 
             { new: true, runValidators: true }
         );
-
         if (!updatedArchive) {
             return res.status(404).json({ message: 'Archive event not found.' });
         }
-
-        // Emit event to update public pages
         if (req.io) {
             req.io.emit('event_list_updated');
             console.log('--- Socket.IO: Emitted event_list_updated (ARCHIVE PUT) ---');
         }
-
         res.json(updatedArchive);
     } catch (error) {
         console.error('Error updating archive links:', error);
@@ -466,9 +389,12 @@ router.put('/archive/:id', async (req, res) => {
     }
 });
 
-
-// --- Admin Registration Data Routes (kept as original) ---
-router.get('/admin/registered-events', async (req, res) => {
+/**
+ * @route   GET /api/events/admin/registered-events (ADMIN)
+ * @desc    Get a summary of registrations for the admin panel
+ */
+// 💡 SECURED: Added '[auth, isAdmin]' middleware
+router.get('/admin/registered-events', [auth, isAdmin], async (req, res) => {
     try {
         const registeredEvents = await RegistrationPayment.aggregate([
             { $match: { paymentStatus: 'success' } },
@@ -489,7 +415,6 @@ router.get('/admin/registered-events', async (req, res) => {
             },
             { $sort: { eventTitle: 1 } }
         ]);
-
         res.json(registeredEvents);
     } catch (error) {
         console.error('CRITICAL AGGREGATION FAILURE for registered-events:', error); 
@@ -497,19 +422,21 @@ router.get('/admin/registered-events', async (req, res) => {
     }
 });
 
-router.get('/admin/registrations/:eventId', async (req, res) => {
-    // NOTE: Apply authentication middleware here
+/**
+ * @route   GET /api/events/admin/registrations/:eventId (ADMIN)
+ * @desc    Get all registrations for a specific event
+ */
+// 💡 SECURED: Added '[auth, isAdmin]' middleware
+router.get('/admin/registrations/:eventId', [auth, isAdmin], async (req, res) => {
     try {
         const { eventId } = req.params;
         if (!eventId) {
             return res.status(400).json({ message: 'Event ID is required' });
         }
-
         const registrations = await RegistrationPayment.find({ 
             eventId: eventId,
             paymentStatus: 'success' 
         }).sort({ createdAt: -1 });
-
         res.json(registrations);
     } catch (error) {
         console.error('Error fetching event registrations:', error);
