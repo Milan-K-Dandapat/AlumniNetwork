@@ -340,21 +340,26 @@ router.patch('/finalize/:id', [auth, isAdmin], async (req, res) => {
 router.delete('/:id', [auth, isAdmin], async (req, res) => {
     try {
         const eventId = req.params.id; 
+        
+        // 🚀 Add this line to stop execution early if the ID format is bad
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
-            return res.status(404).json({ message: 'Event not found or invalid ID format.' });
+            // Return 400 Bad Request if the format is fundamentally wrong
+            return res.status(400).json({ message: 'Invalid Event ID format provided.' }); 
         }
+
         const result = await Event.findByIdAndDelete(eventId);
+        
         if (!result) {
-            return res.status(404).json({ message: 'Event not found.' });
+            // Return 404 if the format is valid but no event exists
+            return res.status(404).json({ message: 'Event not found in the database.' }); 
         }
-        if (req.io) {
-            req.io.emit('event_list_updated');
-            console.log('--- Socket.IO: Emitted event_list_updated (DELETE) ---');
-        }
+        
+        // ... success logic ...
         res.json({ message: 'Event deleted successfully.' });
     } catch (error) {
-        console.error('Error deleting event:', error);
-        res.status(500).json({ message: 'Failed to delete event.' });
+        // This catch block should now only fire for true Server/DB errors.
+        console.error('CRITICAL DB ERROR deleting event:', error); 
+        res.status(500).json({ message: 'Failed to delete event due to a server error.' });
     }
 });
 
