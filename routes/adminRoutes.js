@@ -1,11 +1,7 @@
 import express from 'express';
 import RegistrationPayment from '../models/RegistrationPayment.js';
 import Event from '../models/Event.js';
-// 💡 CRITICAL: Import Auth Middleware for Admin Routes
-import auth, { isAdmin, isSuperAdmin } from '../middleware/auth.js'; 
-
-// 💡 CRITICAL: Import Controllers for Admin Registration and Management
-// NOTE: These controller names need to be defined in your backend (e.g., in a dedicated adminController.js)
+// 💡 CRITICAL FIX: Import controllers from authController.js
 import { 
     adminRegister, 
     adminLogin, 
@@ -14,12 +10,15 @@ import {
     handleGetAllPendingAdmins, 
     handleApproveAdmin, 
     handleRejectAdmin 
-} from '../controllers/adminController.js'; 
+} from '../controllers/authController.js'; // <-- CORRECTED PATH
+
+// Import Auth Middleware
+import auth, { isAdmin, isSuperAdmin } from '../middleware/auth.js'; 
 
 const router = express.Router();
 
 // =========================================================
-// 🚀 1. ADMIN AUTHENTICATION (For Frontend Login Page)
+// 1. ADMIN AUTHENTICATION (For Frontend Login Page)
 // =========================================================
 
 /**
@@ -37,7 +36,7 @@ router.post('/register', adminRegister);
 router.post('/login', adminLogin);
 
 // =========================================================
-// 🚀 2. PENDING ADMIN MANAGEMENT (Super Admin Only)
+// 2. PENDING ADMIN MANAGEMENT (Super Admin Only)
 // =========================================================
 
 /**
@@ -63,7 +62,7 @@ router.delete('/reject/:id', [auth, isSuperAdmin], handleRejectAdmin);
 
 
 // =========================================================
-// 🚀 3. GENERAL USER ROLE MANAGEMENT (Super Admin Only)
+// 3. GENERAL USER ROLE MANAGEMENT (Super Admin Only)
 // =========================================================
 
 /**
@@ -82,7 +81,8 @@ router.patch('/users/:id/role', [auth, isSuperAdmin], handleUpdateUserRole);
 
 
 // =========================================================
-// ✅ 4. REGISTRATION/EVENT DATA RETRIEVAL (Admin Access)
+// 4. REGISTRATION/EVENT DATA RETRIEVAL (Admin Access)
+// (Your original working routes - added middleware)
 // =========================================================
 
 /**
@@ -90,7 +90,7 @@ router.patch('/users/:id/role', [auth, isSuperAdmin], handleUpdateUserRole);
  * @desc   Get a list of unique events that have successful registrations
  * @access Private/Admin
  */
-router.get('/registered-events', [auth, isAdmin], async (req, res) => { // 💡 ADDED MIDDLEWARE
+router.get('/registered-events', [auth, isAdmin], async (req, res) => { 
     try {
         const registeredEvents = await RegistrationPayment.aggregate([
             { $match: { paymentStatus: 'success' } },
@@ -124,7 +124,7 @@ router.get('/registered-events', [auth, isAdmin], async (req, res) => { // 💡 
  * @desc   Get all successful registrations for a specific event
  * @access Private/Admin
  */
-router.get('/registrations/:eventId', [auth, isAdmin], async (req, res) => { // 💡 ADDED MIDDLEWARE
+router.get('/registrations/:eventId', [auth, isAdmin], async (req, res) => { 
     try {
         const { eventId } = req.params;
         if (!eventId) {
