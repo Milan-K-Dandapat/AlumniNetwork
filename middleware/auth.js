@@ -3,40 +3,40 @@ import jwt from 'jsonwebtoken';
 /**
  * @file auth.js
  * This file contains all authentication and authorization middleware.
- * * @function auth - (Default Export) Verifies a JWT token is present and valid.
+ * @function auth - (Default Export) Verifies a JWT token is present and valid.
  * Attaches the user's data (id, email, role) to req.user.
- * * @function isAdmin - (Named Export) Checks if req.user.role is 'admin' OR 'superadmin'.
+ * @function isAdmin - (Named Export) Checks if req.user.role is 'admin' OR 'superadmin'.
  * MUST be used *after* the 'auth' middleware.
- * * @function isSuperAdmin - (Named Export) Checks if the user is the specific super admin.
+ * @function isSuperAdmin - (Named Export) Checks if the user is the specific super admin.
  * MUST be used *after* the 'auth' middleware.
  */
 
-// Fetches the JWT secret from environment variables
+// Fetches the JWT secret from environment variables or uses a fallback
 const getSecret = () => {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-        console.warn("⚠️ JWT_SECRET is not set in environment variables. Using fallback secret.");
+        console.warn("⚠️ JWT_SECRET is not set. Using fallback secret.");
         return 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1';
     }
     return secret;
 }
 
-// --- 1. AUTHENTICATION (Are you logged in?) ---
-// This is your main 'auth' function, which verifies the token.
+// --- 1. AUTHENTICATION (Verifies JWT) ---
 const auth = (req, res, next) => {
     // 1. Get token from the 'Authorization' header
     const authHeader = req.header('Authorization');
 
     if (!authHeader) {
-        return res.status(401).json({ msg: 'No token found in Authorization header, access denied.' });
+        // 401: Client error, token missing
+        return res.status(401).json({ msg: 'Authentication failed: No token provided.' });
     }
 
     try {
         const tokenParts = authHeader.split(' ');
 
-        // 2. Validate token format
+        // 2. Validate token format (must be "Bearer <token>")
         if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
-            return res.status(401).json({ msg: 'Token format is invalid. Expected: Bearer <token>.' });
+            return res.status(401).json({ msg: 'Authentication failed: Token format is invalid. Expected: Bearer <token>.' });
         }
 
         const token = tokenParts[1];
@@ -44,16 +44,17 @@ const auth = (req, res, next) => {
         // 3. Verify the token
         const decoded = jwt.verify(token, getSecret());
 
-        // 4. Extract user ID, email, and role from the token payload
+        // 4. Validate and attach user data from the token payload
         const userId = decoded._id || decoded.id;
         const userEmail = decoded.email;
-        const userRole = decoded.role; // This is the crucial field
+        const userRole = decoded.role; 
 
         if (!userId || !userEmail || !userRole) {
-            throw new Error("Token payload is missing required fields (id, email, or role).");
+            // 401: Token is valid but payload is malformed/incomplete
+            return res.status(401).json({ msg: "Authentication failed: Token payload is missing required user fields (id, email, or role)." });
         }
 
-        // 5. Attach user object to the request for the *next* middleware to use.
+        // Attach user object to the request
         req.user = {
             id: userId,
             _id: userId,
@@ -61,11 +62,10 @@ const auth = (req, res, next) => {
             role: userRole 
         };
 
-        // 6. Proceed to the next middleware (e.g., isAdmin or the route handler)
+        // 5. Proceed to the next middleware or route handler
         next();
 
     } catch (err) {
-        // 7. Error handling
         console.error("JWT Verification Error:", err.message);
 
         let errorMessage = 'Token is not valid.';
@@ -75,34 +75,37 @@ const auth = (req, res, next) => {
             errorMessage = 'Invalid token signature.';
         }
 
+        // 401: JWT verification failed for any reason
         res.status(401).json({ msg: `Authentication failed: ${errorMessage}` });
     }
 };
 
-// --- 2. AUTHORIZATION (Are you an Admin?) ---
-// This is the NEW function you need to add.
-// It runs *after* 'auth' and checks the role.
+// --- 2. AUTHORIZATION (Are you an Admin or Super Admin?) ---
 export const isAdmin = (req, res, next) => {
+    // Check 'req.user.role' which was attached by the 'auth' middleware
+    const role = req.user?.role;
     
-    // We can check 'req.user.role' because the 'auth' middleware (which ran first) added it.
-    if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
-        next(); // User is an admin or superadmin, proceed
+    if (role && (role === 'admin' || role === 'superadmin')) {
+        next(); // User has sufficient privileges
     } else {
-        // User is logged in but is not an admin
-        res.status(403).json({ msg: 'Not authorized. Admin access required.' });
+        // 403: User is logged in (passed 'auth') but lacks permission
+        res.status(403).json({ msg: 'Authorization failed: Admin access required.' });
     }
 };
 
-// --- 3. AUTHORIZATION (Are you the Super Admin?) ---
-// This is your existing 'isSuperAdmin' function.
-// It also runs *after* 'auth'.
+// --- 3. AUTHORIZATION (Are you the designated Super Admin?) ---
 export const isSuperAdmin = (req, res, next) => {
-    const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com'; // Or get from process.env
+    // Retrieve the hardcoded/environmental Super Admin Email for the check
+    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
 
-    if (req.user && req.user.email === SUPER_ADMIN_EMAIL) {
-        next(); // User is the super admin, proceed
+    const userEmail = req.user?.email;
+    
+    // Check both role (for safety) and email (for super admin identity)
+    if (userEmail && userEmail === SUPER_ADMIN_EMAIL && req.user?.role === 'superadmin') {
+        next(); // User is the designated Super Admin
     } else {
-        res.status(403).json({ msg: 'Not authorized. Super admin access required.' });
+        // 403: User is logged in but is not the specific Super Admin
+        res.status(403).json({ msg: 'Authorization failed: Super Admin access required.' });
     }
 };
 

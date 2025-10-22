@@ -3,8 +3,9 @@ import mongoose from 'mongoose';
 const eventSchema = new mongoose.Schema({
     // --- Core Event Fields ---
     title: { type: String, required: true },
-    description: { type: String }, // Used for short description or default long description
+    description: { type: String },
     date: { type: Date, required: true },
+    time: { type: String }, // <--- 💡 ADD THIS FIELD for the time string
     location: { type: String },
     priority: { type: String, default: 'Medium' },
     registrationLink: { type: String },
@@ -16,11 +17,11 @@ const eventSchema = new mongoose.Schema({
     isFoodAvailable: { type: Boolean, default: false },
     currency: { type: String, default: 'INR' },
 
-    // --- Rich Content Fields (For Detail Page Editor) 💡 NEW
-    imageUrl: { type: String }, // For the banner/photo upload (Cloudinary URL)
-    agenda: { type: String }, // For structured agenda/topics content
-    organizer: { type: String }, // Organizer Name
-    contactEmail: { type: String }, // Organizer Contact Email
+    // --- Rich Content Fields (For Detail Page Editor) ---
+    imageUrl: { type: String },
+    agenda: { type: String },
+    organizer: { type: String },
+    contactEmail: { type: String },
 
     // --- Registrations reference (optional) ---
     registrations: [{
@@ -30,9 +31,10 @@ const eventSchema = new mongoose.Schema({
 
     // --- Archive Fields ---
     isArchived: { type: Boolean, default: false },
-    photoLink: { type: String }, // Archive Photo Gallery Link
-    videoLink: { type: String }, // Archive Video Link
-    resourceLink: { type: String }, // Archive Resource Link
+    photoLink: { type: String },
+    videoLink: { type: String },
+    resourceLink: { type: String },
+    externalGalleryUrl: { type: String }, // <--- 💡 ADD THIS FIELD for the detail editor/archive panel
 }, { timestamps: true });
 
 const Event = mongoose.model('Event', eventSchema);

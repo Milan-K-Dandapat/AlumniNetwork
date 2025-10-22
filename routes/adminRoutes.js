@@ -1,49 +1,116 @@
 import express from 'express';
 import RegistrationPayment from '../models/RegistrationPayment.js';
-import Event from '../models/Event.js'; // Assuming you have an 'Event' model
-// import { protect, admin } from '../middleware/authMiddleware.js'; // Assuming authentication
+import Event from '../models/Event.js';
+// 💡 CRITICAL: Import Auth Middleware for Admin Routes
+import auth, { isAdmin, isSuperAdmin } from '../middleware/auth.js'; 
+
+// 💡 CRITICAL: Import Controllers for Admin Registration and Management
+// NOTE: These controller names need to be defined in your backend (e.g., in a dedicated adminController.js)
+import { 
+    adminRegister, 
+    adminLogin, 
+    handleGetAllUsers, 
+    handleUpdateUserRole, 
+    handleGetAllPendingAdmins, 
+    handleApproveAdmin, 
+    handleRejectAdmin 
+} from '../controllers/adminController.js'; 
 
 const router = express.Router();
 
-// NOTE: Remember to apply authentication middleware to all routes.
-// Example: router.get('/registered-events', protect, admin, async (req, res) => { ... });
-
+// =========================================================
+// 🚀 1. ADMIN AUTHENTICATION (For Frontend Login Page)
+// =========================================================
 
 /**
- * @route   GET /api/admin/registered-events
- * @desc    Get a list of unique events that have successful registrations
- * @access  Private/Admin
+ * @route  POST /api/admin/register
+ * @desc   Register a new Admin account (pending approval)
+ * @access Public
  */
-router.get('/registered-events', async (req, res) => {
+router.post('/register', adminRegister);
+
+/**
+ * @route  POST /api/admin/login
+ * @desc   Login a registered Admin account
+ * @access Public
+ */
+router.post('/login', adminLogin);
+
+// =========================================================
+// 🚀 2. PENDING ADMIN MANAGEMENT (Super Admin Only)
+// =========================================================
+
+/**
+ * @route  GET /api/admin/pending
+ * @desc   Get all pending (unverified/isVerified: false) admin accounts
+ * @access Private/Super Admin
+ */
+router.get('/pending', [auth, isSuperAdmin], handleGetAllPendingAdmins);
+
+/**
+ * @route  PATCH /api/admin/approve/:id
+ * @desc   Approve a pending admin account
+ * @access Private/Super Admin
+ */
+router.patch('/approve/:id', [auth, isSuperAdmin], handleApproveAdmin);
+
+/**
+ * @route  DELETE /api/admin/reject/:id
+ * @desc   Delete a pending admin account
+ * @access Private/Super Admin
+ */
+router.delete('/reject/:id', [auth, isSuperAdmin], handleRejectAdmin);
+
+
+// =========================================================
+// 🚀 3. GENERAL USER ROLE MANAGEMENT (Super Admin Only)
+// =========================================================
+
+/**
+ * @route  GET /api/admin/users/all
+ * @desc   Get all user accounts (for Super Admin Role Manager)
+ * @access Private/Super Admin
+ */
+router.get('/users/all', [auth, isSuperAdmin], handleGetAllUsers);
+
+/**
+ * @route  PATCH /api/admin/users/:id/role
+ * @desc   Update a user's role (user <-> admin)
+ * @access Private/Super Admin
+ */
+router.patch('/users/:id/role', [auth, isSuperAdmin], handleUpdateUserRole);
+
+
+// =========================================================
+// ✅ 4. REGISTRATION/EVENT DATA RETRIEVAL (Admin Access)
+// =========================================================
+
+/**
+ * @route  GET /api/admin/registered-events
+ * @desc   Get a list of unique events that have successful registrations
+ * @access Private/Admin
+ */
+router.get('/registered-events', [auth, isAdmin], async (req, res) => { // 💡 ADDED MIDDLEWARE
     try {
-        // Use aggregation to find unique event IDs and their titles from successful payments
         const registeredEvents = await RegistrationPayment.aggregate([
-            // 1. Filter only successful payments
             { $match: { paymentStatus: 'success' } },
-            
-            // 2. Group by eventId and eventTitle to get unique combinations
             {
                 $group: {
                     _id: '$eventId',
-                    eventTitle: { $first: '$eventTitle' }, // Grab the title for the group
-                    count: { $sum: 1 } // Get a count of registrations per event
+                    eventTitle: { $first: '$eventTitle' },
+                    count: { $sum: 1 }
                 }
             },
-            
-            // 3. Project the output to match the desired frontend structure
             {
                 $project: {
-                    _id: 0, // Exclude the default _id field
-                    eventId: '$_id', // Rename the grouped ID to eventId
-                    eventTitle: 1, // Include the event title
-                    count: 1 // Include the count
+                    _id: 0,
+                    eventId: '$_id',
+                    eventTitle: 1,
+                    count: 1
                 }
             },
-            
-            // 4. Sort alphabetically by title
             { $sort: { eventTitle: 1 } }
         ]);
-
         res.json(registeredEvents);
     } catch (error) {
         console.error('Error fetching registered events:', error);
@@ -53,18 +120,17 @@ router.get('/registered-events', async (req, res) => {
 
 
 /**
- * @route   GET /api/admin/registrations/:eventId
- * @desc    Get all successful registrations for a specific event
- * @access  Private/Admin
+ * @route  GET /api/admin/registrations/:eventId
+ * @desc   Get all successful registrations for a specific event
+ * @access Private/Admin
  */
-router.get('/registrations/:eventId', async (req, res) => {
+router.get('/registrations/:eventId', [auth, isAdmin], async (req, res) => { // 💡 ADDED MIDDLEWARE
     try {
         const { eventId } = req.params;
         if (!eventId) {
             return res.status(400).json({ message: 'Event ID is required' });
         }
 
-        // Find all payments that are successful for the given eventId
         const registrations = await RegistrationPayment.find({ 
             eventId: eventId,
             paymentStatus: 'success' 
@@ -76,8 +142,5 @@ router.get('/registrations/:eventId', async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
-
-// NOTE: The old GET /api/admin/events route is removed as it is no longer necessary 
-// for the Registration tab's purpose.
 
 export default router;
