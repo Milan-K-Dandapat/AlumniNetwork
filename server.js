@@ -20,9 +20,8 @@ import profileRoutes from './routes/profileRoutes.js';
 import galleryRoutes from './routes/galleryRoutes.js';
 import contactRoutes from './routes/contact.route.js';
 import projectRoutes from './routes/projectRoutes.js';
-import teacherRoutes from './routes/teacherRoutes.js'; // This is used correctly
+import teacherRoutes from './routes/teacherRoutes.js'; 
 // --- (*** NEW ***) ---
-// We now import your new alumniRoutes file
 import alumniRoutes from './routes/alumniRoutes.js';
 // -----------------------------------------------------------------
 import visitorRoutes from './routes/visitors.js';
@@ -34,13 +33,16 @@ import statsRoutes from './routes/statsRoutes.js';
 import sgMail from '@sendgrid/mail'; 
 
 // --- (*** UPDATED ***) ---
-// We now import both 'auth' and 'isSuperAdmin' from your middleware
 import auth, { isSuperAdmin } from './middleware/auth.js'; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '.env') });
+
+// 💡 NEW: Define a constant for the remote API URL for local testing safety
+const REMOTE_API_BASE_URL = process.env.REACT_APP_API_URL || 'https://alumninetwork-5.onrender.com';
+const IS_LOCAL_DEV = process.env.NODE_ENV !== 'production';
 
 // ... (Rest of configuration is unchanged) ...
 const MONGO_URI = process.env.MONGO_URI;
@@ -210,13 +212,12 @@ console.log('JWT Secret is loaded.');
 // --- ROUTING ---
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
-app.use('/api/events', eventRoutes); // This handles your other admin panel
+app.use('/api/events', eventRoutes); 
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/teachers', teacherRoutes); // <-- This is correct
+app.use('/api/teachers', teacherRoutes); 
 // --- (*** NEW ***) ---
-// We now tell Express to use your new alumniRoutes file
 app.use('/api/alumni', alumniRoutes);
 // ---------------------
 app.use('/api/visitors', visitorRoutes);
@@ -226,31 +227,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/stats', statsRoutes);
 // ---------------
 
-// --- (*** REMOVED ***) ---
-// The old 'isSuperAdmin' function was here.
-// It is now correctly imported from '/middleware/auth.js'
-// ------------------------------------
-
-
-// --- (*** REMOVED ***) ---
-// The old, inline '/api/alumni' routes were here.
-// They are now correctly handled by your '/routes/alumniRoutes.js' file,
-// which uses the correct controllers and new security logic.
-// ------------------------------------
-
-// --- (*** REMOVED ***) ---
-// The old, inline '/api/teachers/:id/verify' route was here.
-// This is now correctly handled by your '/routes/teacherRoutes.js' file.
-// ------------------------------------
-
-
-// --- (*** NEW ***) ---
-// These are the new routes for your Admin Management page
-/**
- * @route   GET /api/users/all
- * @desc    Get all users (alumni & teachers) for the admin panel
- * @access  Private (Super Admin Only)
- */
+// --- ADMIN MANAGEMENT ROUTES (Unchanged) ---
 app.get('/api/users/all', auth, isSuperAdmin, async (req, res) => {
     try {
         const alumni = await Alumni.find().select('fullName email role alumniCode isVerified');
@@ -268,11 +245,6 @@ app.get('/api/users/all', auth, isSuperAdmin, async (req, res) => {
     }
 });
 
-/**
- * @route   PATCH /api/users/:id/role
- * @desc    Update a user's role (to 'admin' or 'user')
- * @access  Private (Super Admin Only)
- */
 app.patch('/api/users/:id/role', auth, isSuperAdmin, async (req, res) => {
     const { role } = req.body;
     const { id } = req.params;
@@ -314,7 +286,7 @@ app.patch('/api/users/:id/role', auth, isSuperAdmin, async (req, res) => {
 // --- END NEW ADMIN ROUTES ---
 
 
-// --- OTHER ROUTES (Unchanged) ---
+// --- OTHER ROUTES ---
 app.get('/api/total-users', async (req, res) => {
 // ... (This function is unchanged) ...
     try {
@@ -327,9 +299,9 @@ app.get('/api/total-users', async (req, res) => {
     }
 });
 
-// ... (Rest of Payment Routes and server listen are unchanged) ...
+// 💡 NEW/MODIFIED: Use the REMOTE_API_BASE_URL logic for inline routes
 app.post('/api/register-free-event', async (req, res) => {
-// ... (This function is unchanged) ...
+    // ... (logic unchanged, but calls must use absolute URL in frontend) ...
     try {
         const registrationData = req.body;
         const userId = registrationData.userId; 
@@ -361,7 +333,7 @@ app.post('/api/register-free-event', async (req, res) => {
 });
 
 app.post('/api/create-order', async (req, res) => {
-// ... (This function is unchanged) ...
+// ... (logic unchanged) ...
     try {
         const { amount, ...registrationData } = req.body;
 
@@ -392,7 +364,7 @@ app.post('/api/create-order', async (req, res) => {
 });
 
 app.post('/api/verify-payment', async (req, res) => {
-// ... (This function is unchanged) ...
+// ... (logic unchanged) ...
     try {
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, isDonation } = req.body;
         const body = razorpay_order_id + "|" + razorpay_payment_id;
