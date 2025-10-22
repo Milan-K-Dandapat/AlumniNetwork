@@ -1,7 +1,7 @@
 import express from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
-import mongoose from 'mongoose'; // 💡 NEW: Import Mongoose to validate/handle ObjectId
+import mongoose from 'mongoose'; 
 import RegistrationPayment from '../models/RegistrationPayment.js';
 import Event from '../models/Event.js';
 // Assuming authentication middleware imports if they were used:
@@ -62,16 +62,15 @@ const fetchAndEmitUpdatedEvents = async (io, userId) => {
 // ====================================================================
 
 /**
- * @route   GET /api/events/:id 💡 CRITICAL FIX: Fetch Single Event Details
- * @desc    Get a single event by ID (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/:id 
+ * @desc    Get a single event by ID (PUBLIC)
+ * @access  Public
  */
 router.get('/:id', async (req, res) => {
     const eventId = req.params.id;
 
     // 1. Validate if the ID format is a valid MongoDB ObjectId structure
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
-        // This addresses the 404/Bad Request for non-ObjectId strings like 'unxfkmcd'
         return res.status(404).json({ message: 'Event not found or invalid ID format.' });
     }
     
@@ -93,9 +92,9 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
- * @route   POST /api/register-free-event (Unchanged)
- * @desc    Handles registration for events with a total amount of 0
- * @access  Public
+ * @route   POST /api/register-free-event (Unchanged)
+ * @desc    Handles registration for events with a total amount of 0
+ * @access  Public
  */
 router.post('/register-free-event', async (req, res) => {
     try {
@@ -127,9 +126,9 @@ router.post('/register-free-event', async (req, res) => {
 });
 
 /**
- * @route   POST /api/create-order (Unchanged)
- * @desc    Creates a Razorpay order for paid registrations
- * @access  Public
+ * @route   POST /api/create-order (Unchanged)
+ * @desc    Creates a Razorpay order for paid registrations
+ * @access  Public
  */
 router.post('/create-order', async (req, res) => {
     try {
@@ -169,9 +168,9 @@ router.post('/create-order', async (req, res) => {
 });
 
 /**
- * @route   POST /api/verify-payment (Unchanged)
- * @desc    Verifies the payment signature from Razorpay after payment
- * @access  Public
+ * @route   POST /api/verify-payment (Unchanged)
+ * @desc    Verifies the payment signature from Razorpay after payment
+ * @access  Public
  */
 router.post('/verify-payment', async (req, res) => {
     try {
@@ -218,9 +217,9 @@ router.post('/verify-payment', async (req, res) => {
 
 // NEW: Endpoint to fetch the registered events for a specific user (Required by Dashboard)
 /**
- * @route   GET /api/events/my-registrations (Unchanged)
- * @desc    Get events registered by the authenticated user
- * @access  Private (Requires authentication/protection middleware)
+ * @route   GET /api/events/my-registrations (Unchanged)
+ * @desc    Get events registered by the authenticated user
+ * @access  Private (Requires authentication/protection middleware)
  */
 router.get('/my-registrations', async (req, res) => {
     // Assuming req.user is set by authentication middleware
@@ -255,13 +254,22 @@ router.get('/my-registrations', async (req, res) => {
 
 
 /**
- * @route   GET /api/events/upcoming (Unchanged)
- * @desc    Get all non-archived events (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/upcoming 
+ * @desc    Get all non-archived events with a future date (PUBLIC)
+ * @access  Public
  */
 router.get('/upcoming', async (req, res) => {
     try {
-        const events = await Event.find({ isArchived: false }).sort({ date: 1 });
+        // 🔑 CRITICAL FIX: Filter by date >= current date AND must NOT be archived.
+        const currentDate = new Date();
+        // Set time to start of day to ensure today's events are included if time hasn't passed
+        currentDate.setHours(0, 0, 0, 0); 
+        
+        const events = await Event.find({ 
+            isArchived: false,
+            date: { $gte: currentDate } // Date is greater than or equal to today
+        }).sort({ date: 1 });
+        
         res.json(events);
     } catch (error) {
         console.error('Error fetching upcoming events:', error);
@@ -270,14 +278,22 @@ router.get('/upcoming', async (req, res) => {
 });
 
 /**
- * @route   GET /api/events/past (Unchanged)
- * @desc    Get all archived events (PUBLIC)
- * @access  Public
+ * @route   GET /api/events/past 
+ * @desc    Get all archived events OR non-archived events with a past date (PUBLIC)
+ * @access  Public
  */
 router.get('/past', async (req, res) => {
     try {
-        // Fetch events where isArchived is true, sort by date descending
-        const events = await Event.find({ isArchived: true }).sort({ date: -1 });
+        // 🔑 CRITICAL FIX: Filter by date < current date OR where isArchived is true.
+        const currentDate = new Date();
+        
+        const events = await Event.find({ 
+            $or: [
+                { isArchived: true }, // Events manually archived by admin
+                { date: { $lt: currentDate } } // Events where date is strictly in the past
+            ]
+        }).sort({ date: -1 }); // Sort by date descending (most recent past event first)
+        
         res.json(events);
     } catch (error) {
         console.error('Error fetching past events:', error);
@@ -291,9 +307,9 @@ router.get('/past', async (req, res) => {
 // ====================================================================
 
 /**
- * @route   POST /api/events (Unchanged)
- * @desc    Create a new event (ADMIN)
- * @access  Private
+ * @route   POST /api/events (Unchanged)
+ * @desc    Create a new event (ADMIN)
+ * @access  Private
  */
 router.post('/', async (req, res) => {
     // NOTE: Apply authentication middleware here
@@ -315,9 +331,9 @@ router.post('/', async (req, res) => {
 });
 
 /**
- * @route   PUT /api/events/:id (Unchanged)
- * @desc    Update an existing event (ADMIN)
- * @access  Private
+ * @route   PUT /api/events/:id (Unchanged)
+ * @desc    Update an existing event (ADMIN)
+ * @access  Private
  */
 router.put('/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
@@ -353,9 +369,9 @@ router.put('/:id', async (req, res) => {
 });
 
 /**
- * @route   PATCH /api/events/finalize/:id (Unchanged)
- * @desc    Move an event from Upcoming to Archived (ADMIN)
- * @access  Private
+ * @route   PATCH /api/events/finalize/:id (Unchanged)
+ * @desc    Move an event from Upcoming to Archived (ADMIN)
+ * @access  Private
  */
 router.patch('/finalize/:id', async (req, res) => { 
     // NOTE: Apply authentication middleware here
@@ -367,7 +383,7 @@ router.patch('/finalize/:id', async (req, res) => {
             return res.status(404).json({ message: 'Event not found or invalid ID format.' });
         }
 
-        // Mark as archived and update optional media links passed in req.body
+        // Mark as archived and update optional media links passed in req.body (including externalGalleryUrl now)
         const finalizedEvent = await Event.findByIdAndUpdate(
             eventId,
             { isArchived: true, ...req.body }, 
@@ -392,9 +408,9 @@ router.patch('/finalize/:id', async (req, res) => {
 });
 
 /**
- * @route   DELETE /api/events/:id (Unchanged)
- * @desc    Delete an event (ADMIN)
- * @access  Private
+ * @route   DELETE /api/events/:id (Unchanged)
+ * @desc    Delete an event (ADMIN)
+ * @access  Private
  */
 router.delete('/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
@@ -426,9 +442,9 @@ router.delete('/:id', async (req, res) => {
 });
 
 /**
- * @route   PUT /api/events/archive/:id (Unchanged)
- * @desc    Update archive links (media links) for a past event (ADMIN)
- * @access  Private
+ * @route   PUT /api/events/archive/:id 
+ * @desc    Update archive links (media links) for a past event (ADMIN)
+ * @access  Private
  */
 router.put('/archive/:id', async (req, res) => {
     // NOTE: Apply authentication middleware here
@@ -440,12 +456,12 @@ router.put('/archive/:id', async (req, res) => {
             return res.status(404).json({ message: 'Archive event not found or invalid ID format.' });
         }
         
-        // Only update the specific fields passed from the admin UI
-        const { title, photoLink, videoLink, resourceLink } = req.body;
+        // 🔑 FIX: Include externalGalleryUrl in the fields to be updated
+        const { title, photoLink, videoLink, resourceLink, externalGalleryUrl } = req.body;
 
         const updatedArchive = await Event.findByIdAndUpdate(
             eventId, 
-            { title, photoLink, videoLink, resourceLink }, 
+            { title, photoLink, videoLink, resourceLink, externalGalleryUrl }, 
             { new: true, runValidators: true }
         );
 
