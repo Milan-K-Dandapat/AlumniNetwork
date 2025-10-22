@@ -20,8 +20,9 @@ import profileRoutes from './routes/profileRoutes.js';
 import galleryRoutes from './routes/galleryRoutes.js';
 import contactRoutes from './routes/contact.route.js';
 import projectRoutes from './routes/projectRoutes.js';
-import teacherRoutes from './routes/teacherRoutes.js'; 
+import teacherRoutes from './routes/teacherRoutes.js'; // This is used correctly
 // --- (*** NEW ***) ---
+// We now import your new alumniRoutes file
 import alumniRoutes from './routes/alumniRoutes.js';
 // -----------------------------------------------------------------
 import visitorRoutes from './routes/visitors.js';
@@ -33,16 +34,13 @@ import statsRoutes from './routes/statsRoutes.js';
 import sgMail from '@sendgrid/mail'; 
 
 // --- (*** UPDATED ***) ---
+// We now import both 'auth' and 'isSuperAdmin' from your middleware
 import auth, { isSuperAdmin } from './middleware/auth.js'; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '.env') });
-
-// 💡 NEW: Define a constant for the remote API URL for local testing safety
-const REMOTE_API_BASE_URL = process.env.REACT_APP_API_URL || 'https://alumninetwork-5.onrender.com';
-const IS_LOCAL_DEV = process.env.NODE_ENV !== 'production';
 
 // ... (Rest of configuration is unchanged) ...
 const MONGO_URI = process.env.MONGO_URI;
@@ -56,7 +54,7 @@ mongoose.connect(MONGO_URI)
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const sendCongratulationEmail = async (toEmail, userName) => {
-    // ... (Function implementation unchanged) ...
+    // ... (This function is unchanged) ...
     const fromEmail = 'mcaigitalumni@gmail.com'; 
     const subject = '🎉 Congratulations! Your Alumni Account is Verified!';
     const html = `
@@ -67,6 +65,7 @@ const sendCongratulationEmail = async (toEmail, userName) => {
             <p style="margin-top: 20px;">
                 <strong>Next Step:</strong> Please log in and start exploring our community!
             </p>
+            <p>Thank you for being a part of our network.</p>
             <p style="font-size: 0.9em; color: #777;">Best regards,</p>
             <p style="font-size: 0.9em; color: #777;">The IGIT MCA Alumni Team</p>
         </div>
@@ -83,22 +82,26 @@ const sendCongratulationEmail = async (toEmail, userName) => {
 };
 
 cloudinary.config({
+// ... (This section is unchanged) ...
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 const razorpay = new Razorpay({
+// ... (This section is unchanged) ...
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 const app = express();
 const PORT = process.env.PORT || 5000;
 const ALLOWED_ORIGINS = [
+// ... (This section is unchanged) ...
     'http://localhost:3000',
     'https://igitmcaalumni.netlify.app',
 ];
 const NETLIFY_PREVIEW_REGEX = /\.netlify\.app$/;
 app.use(cors({
+// ... (This section is unchanged) ...
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
         if (origin.startsWith('http://localhost:')) {
@@ -118,6 +121,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true })); 
 const server = http.createServer(app);
 const io = new Server(server, {
+// ... (This section is unchanged) ...
     cors: {
         origin: (origin, callback) => {
             if (!origin || origin.startsWith('http://localhost:')) {
@@ -134,11 +138,13 @@ const io = new Server(server, {
     }
 });
 app.use((req, res, next) => {
+// ... (This section is unchanged) ...
     req.io = io;
     next();
 });
-
+// ... (All socket.io helper functions are unchanged) ...
 const getUpdatedEvents = async (userId) => {
+// ... (This function is unchanged) ...
     try {
         const registrations = await RegistrationPayment.find({ 
             userId: userId, 
@@ -164,6 +170,7 @@ const getUpdatedEvents = async (userId) => {
     }
 };
 const getUpdatedContributions = async (userId) => {
+// ... (This function is unchanged) ...
     if (!mongoose.Types.ObjectId.isValid(userId)) return 0;
     const userObjectId = new mongoose.Types.ObjectId(userId);
     try {
@@ -179,6 +186,7 @@ const getUpdatedContributions = async (userId) => {
     }
 };
 const getTotalDonationAmount = async () => {
+// ... (This function is unchanged) ...
     try {
         const totalResult = await Donation.aggregate([
             { $match: { status: 'successful' } }, 
@@ -202,12 +210,13 @@ console.log('JWT Secret is loaded.');
 // --- ROUTING ---
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
-app.use('/api/events', eventRoutes); // 💡 The router handles its own auth
+app.use('/api/events', eventRoutes); // This handles your other admin panel
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/teachers', teacherRoutes); 
+app.use('/api/teachers', teacherRoutes); // <-- This is correct
 // --- (*** NEW ***) ---
+// We now tell Express to use your new alumniRoutes file
 app.use('/api/alumni', alumniRoutes);
 // ---------------------
 app.use('/api/visitors', visitorRoutes);
@@ -217,8 +226,32 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/stats', statsRoutes);
 // ---------------
 
-// --- ADMIN MANAGEMENT ROUTES (PROTECTED) ---
-app.get('/api/users/all', auth, isSuperAdmin, async (req, res) => { // ✅ PROTECTED
+// --- (*** REMOVED ***) ---
+// The old 'isSuperAdmin' function was here.
+// It is now correctly imported from '/middleware/auth.js'
+// ------------------------------------
+
+
+// --- (*** REMOVED ***) ---
+// The old, inline '/api/alumni' routes were here.
+// They are now correctly handled by your '/routes/alumniRoutes.js' file,
+// which uses the correct controllers and new security logic.
+// ------------------------------------
+
+// --- (*** REMOVED ***) ---
+// The old, inline '/api/teachers/:id/verify' route was here.
+// This is now correctly handled by your '/routes/teacherRoutes.js' file.
+// ------------------------------------
+
+
+// --- (*** NEW ***) ---
+// These are the new routes for your Admin Management page
+/**
+ * @route   GET /api/users/all
+ * @desc    Get all users (alumni & teachers) for the admin panel
+ * @access  Private (Super Admin Only)
+ */
+app.get('/api/users/all', auth, isSuperAdmin, async (req, res) => {
     try {
         const alumni = await Alumni.find().select('fullName email role alumniCode isVerified');
         const teachers = await Teacher.find().select('fullName email role teacherCode isVerified');
@@ -235,7 +268,12 @@ app.get('/api/users/all', auth, isSuperAdmin, async (req, res) => { // ✅ PROTE
     }
 });
 
-app.patch('/api/users/:id/role', auth, isSuperAdmin, async (req, res) => { // ✅ PROTECTED
+/**
+ * @route   PATCH /api/users/:id/role
+ * @desc    Update a user's role (to 'admin' or 'user')
+ * @access  Private (Super Admin Only)
+ */
+app.patch('/api/users/:id/role', auth, isSuperAdmin, async (req, res) => {
     const { role } = req.body;
     const { id } = req.params;
 
@@ -278,6 +316,7 @@ app.patch('/api/users/:id/role', auth, isSuperAdmin, async (req, res) => { // �
 
 // --- OTHER ROUTES (Unchanged) ---
 app.get('/api/total-users', async (req, res) => {
+// ... (This function is unchanged) ...
     try {
         const alumniCount = await Alumni.countDocuments({ isVerified: true });
         const teacherCount = await Teacher.countDocuments({ isVerified: true });
@@ -288,10 +327,9 @@ app.get('/api/total-users', async (req, res) => {
     }
 });
 
-// 💡 NOTE: The following payment routes are NOT protected by auth. 
-// They should be fine as they use Razorpay verification/user ID.
-
+// ... (Rest of Payment Routes and server listen are unchanged) ...
 app.post('/api/register-free-event', async (req, res) => {
+// ... (This function is unchanged) ...
     try {
         const registrationData = req.body;
         const userId = registrationData.userId; 
@@ -323,6 +361,7 @@ app.post('/api/register-free-event', async (req, res) => {
 });
 
 app.post('/api/create-order', async (req, res) => {
+// ... (This function is unchanged) ...
     try {
         const { amount, ...registrationData } = req.body;
 
@@ -353,6 +392,7 @@ app.post('/api/create-order', async (req, res) => {
 });
 
 app.post('/api/verify-payment', async (req, res) => {
+// ... (This function is unchanged) ...
     try {
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, isDonation } = req.body;
         const body = razorpay_order_id + "|" + razorpay_payment_id;
