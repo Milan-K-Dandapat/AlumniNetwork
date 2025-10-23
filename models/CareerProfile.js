@@ -126,7 +126,6 @@ const CareerProfileSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Add index on personalEmail for faster lookups and unique constraint enforcement
-CareerProfileSchema.index({ personalEmail: 1 });
+// CareerProfileSchema.index({ personalEmail: 1 });
 
 export default mongoose.model('CareerProfile', CareerProfileSchema);
