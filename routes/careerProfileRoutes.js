@@ -1,7 +1,6 @@
 import express from 'express';
-// Assuming 'getCareerProfile' is imported correctly from this file path
-import { saveCareerProfile } from '../controllers/careerProfileController.js'; 
-import { getCareerProfile } from '../controllers/getProfileController.js'; // ⚠️ Still suspect this file path is wrong
+// 1. Consolidated Import: Fetching both functions from the single controller file
+import { saveCareerProfile, getMyCareerProfile } from '../controllers/careerProfileController.js'; 
 import auth from '../middleware/auth.js'; 
 import multer from 'multer';
 import path from 'path';
@@ -10,7 +9,7 @@ import { fileURLToPath } from 'url';
 
 const router = express.Router();
 
-// --- Directory Setup for Multer ---
+// --- Directory Setup for Multer (NO CHANGES REQUIRED) ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'resumes');
@@ -27,7 +26,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 
 // -------------------------------------------------------------------
-// --- Multer Configuration for Resume Upload (POST Route) ---
+// --- Multer Configuration for Resume Upload (NO CHANGES REQUIRED) ---
 // -------------------------------------------------------------------
 
 const storage = multer.diskStorage({
@@ -35,9 +34,7 @@ const storage = multer.diskStorage({
         cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
-        // Use the authenticated user's ID for consistent, unique naming
-        // Multer's filename function runs BEFORE the final controller, 
-        // but AFTER 'auth' middleware, so req.user should be available.
+        // Uses req.user._id (set by 'auth' middleware) for unique naming
         const userId = req.user ? req.user._id : Date.now(); 
         const ext = path.extname(file.originalname);
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -45,10 +42,9 @@ const storage = multer.diskStorage({
     }
 });
 
-// ⭐ Renamed 'upload' to 'resumeUpload' to avoid confusion, though your code structure handles it.
 const resumeUpload = multer({ 
     storage: storage,
-    limits: { fileSize: 1024 * 1024 * 5 }, // Enforce 5MB file size limit
+    limits: { fileSize: 1024 * 1024 * 5 }, // 5MB file size limit
     fileFilter: (req, file, cb) => {
         if (file.mimetype === 'application/pdf') {
             cb(null, true);
@@ -62,32 +58,15 @@ const resumeUpload = multer({
 // --- Route Definitions ---
 // -------------------------------------------------------------------
 
-// 1. GET /api/career-profile/me: Fetch the authenticated user's profile data (Persistence FIX)
-// This is the route the frontend calls on load. If the controller throws an error, 
-// the frontend gets a 500 or 401 and displays "Access Denied."
-router.route('/me').get(auth, getCareerProfile); 
+// 1. GET /api/career-profile/me: Fetch the authenticated user's profile data
+router.route('/me').get(auth, getMyCareerProfile); 
 
-// 2. POST /api/career-profile: Save or update the profile (Submission FIX)
+// 2. POST /api/career-profile: Save or update the profile
 router.route('/').post(
     auth, 
-    // Custom middleware to wrap Multer and handle file upload errors cleanly
-    (req, res, next) => {
-        // ⭐ Use the named multer instance 'resumeUpload'
-        resumeUpload.single('resume')(req, res, function (err) {
-            
-            if (err instanceof multer.MulterError) {
-                // Log the error to the server console for better debugging
-                console.error("Multer Error:", err.message);
-                return res.status(400).json({ success: false, message: `Upload Error: ${err.message}` });
-            } 
-            else if (err) {
-                console.error("File Filter Error:", err.message);
-                return res.status(400).json({ success: false, message: err.message });
-            }
-            
-            next();
-        });
-    },
+    // Simplified: Using Multer directly as middleware
+    // This handles the file and passes control to saveCareerProfile
+    resumeUpload.single('resume'), 
     saveCareerProfile 
 );
 

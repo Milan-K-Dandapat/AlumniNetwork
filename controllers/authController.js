@@ -193,7 +193,10 @@ export const loginOtpVerify = async (req, res) => {
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
         user.otp = undefined; user.otpExpires = undefined; await user.save({ validateBeforeSave: false });
-        const payload = { id: user._id, email: user.email, role: user.role };
+        
+        // ⭐ RECOMMENDED CHANGE: Use _id in the payload
+        const payload = { _id: user._id, email: user.email, role: user.role }; 
+        
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'OTP verified. Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, userType: 'alumni', alumniCode: user.alumniCode, role: user.role } });
     } catch (error) {
@@ -209,7 +212,10 @@ export const loginOtpVerifyTeacher = async (req, res) => {
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
         user.otp = undefined; user.otpExpires = undefined; await user.save({ validateBeforeSave: false });
-        const payload = { id: user._id, email: user.email, role: user.role };
+        
+        // ⭐ RECOMMENDED CHANGE: Use _id in the payload
+        const payload = { _id: user._id, email: user.email, role: user.role }; 
+        
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'OTP verified. Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, userType: 'teacher', alumniCode: user.teacherCode, role: user.role } });
     } catch (error) {
@@ -226,7 +232,10 @@ export const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
-        const payload = { id: user._id, email: user.email, role: user.role };
+        
+        // ⭐ RECOMMENDED CHANGE: Use _id in the payload
+        const payload = { _id: user._id, email: user.email, role: user.role }; 
+        
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, alumniCode: user.alumniCode, role: user.role } });
     } catch (error) {
@@ -297,8 +306,9 @@ export const adminLogin = async (req, res) => {
             }).select('+password +role +isVerified');
             userType = 'teacher';
         }
+        
 
-        if (!user || !user.password) { return res.status(404).json({ message: 'Admin account not found or is passwordless (use OTP flow).' }); }
+       if (!user || !user.password) { return res.status(404).json({ message: 'Admin account not found or is passwordless (use OTP flow).' }); }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) { return res.status(401).json({ message: 'Invalid credentials.' }); }
@@ -306,7 +316,9 @@ export const adminLogin = async (req, res) => {
         if (user.role !== 'admin' && user.role !== 'superadmin') { return res.status(403).json({ message: 'Access Denied. User does not have an admin role.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Account pending Super Admin approval.', isApproved: false }); }
         
-        const payload = { id: user._id, email: user.email || identifier, role: user.role };
+        // ⭐ RECOMMENDED CHANGE: Use _id in the payload
+        const payload = { _id: user._id, email: user.email || identifier, role: user.role }; 
+        
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
 
         res.status(200).json({ message: 'Admin login successful.', token, user: { id: user._id, username: user.username || user.email, role: user.role, isApproved: user.isVerified, userType: userType } });

@@ -1,12 +1,23 @@
 import mongoose from 'mongoose';
 
 const CareerProfileSchema = new mongoose.Schema({
-    // Link to the User/Alumni who owns this profile (references the Alumni model)
+    // 1. PRIMARY UNIQUE KEY: Links this profile directly to the authenticated user's ID
     userId: {
         type: mongoose.Schema.Types.ObjectId,
+        // The ref should ideally cover both Alumni and Teacher models if they can create profiles.
+        // Keeping 'Alumni' here assumes your main users are alumni/students.
         ref: 'Alumni', 
         required: true,
-        unique: true, 
+        unique: true, // Crucial for enforcing one profile per user
+    },
+    
+    // ⭐ CRITICAL CHANGE 1: Enforce immutability and uniqueness on personalEmail ⭐
+    // This email will be fetched from the primary user account in the controller and set once.
+    personalEmail: {
+        type: String,
+        required: true,
+        unique: true,   // Ensures no two profiles share the same email
+        immutable: true, // Prevents updates to this field after the document is created
     },
     
     // --- Step 1: User Type ---
@@ -31,15 +42,9 @@ const CareerProfileSchema = new mongoose.Schema({
     lastJobTitle: { type: String },
     lastCompanyName: { type: String },
 
-    // --- ⭐ NEW: CONTACT INFORMATION ---
-    // For working professionals
+    // --- Professional Contact (Editable) ---
     professionalEmail: { 
         type: String,
-    },
-    // For ALL users (working professionals AND students)
-    personalEmail: {
-        type: String,
-        required: true,
     },
     
     // --- Step 3: Skills ---
@@ -53,7 +58,7 @@ const CareerProfileSchema = new mongoose.Schema({
     institution: { type: String, required: true },
     startingYear: { type: String, required: true },
     passingYear: { type: String }, 
-    cgpa: { type: String }, // Now optional
+    cgpa: { type: String },
 
     // --- Step 5: Preferences ---
     preferredLocations: { 
