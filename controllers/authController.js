@@ -4,20 +4,17 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import sgMail from '@sendgrid/mail'; // SendGrid client
-import mongoose from 'mongoose'; // <-- Required for findByIdAndUpdate helpers
+import mongoose from 'mongoose'; 
 
 const OTP_EXPIRY_MINUTES = 10;
-// Fallback secret for safety if environment variable fails
 const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1';
 
-// --- CONFIGURATION ---
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // =========================================================================
-// --- HELPERS ---
+// --- HELPERS (UNCHANGED) ---
 // =========================================================================
 
-// Helper to find a user in either Alumni or Teacher collection
 const findUserById = async (id) => {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
     let user = await Alumni.findById(id).select('+password +role +isVerified');
@@ -27,7 +24,6 @@ const findUserById = async (id) => {
     return user;
 };
 
-// Helper to update a user in either Alumni or Teacher collection
 const findUserByIdAndUpdate = async (id, update, options = {}) => {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
     let user = await Alumni.findByIdAndUpdate(id, update, { new: true, ...options });
@@ -37,7 +33,6 @@ const findUserByIdAndUpdate = async (id, update, options = {}) => {
     return user;
 };
 
-// Send Email Helper
 const sendVerificationEmail = async (toEmail, otp, subject) => {
     const msg = {
         from: process.env.EMAIL_USER, 
@@ -52,7 +47,6 @@ const sendVerificationEmail = async (toEmail, otp, subject) => {
     }
 };
 
-// Get Highest Numerical ID Helper (Unchanged)
 const getHighestNumericalID = async () => {
     const alumniCodeQuery = await Alumni.findOne({ alumniCode: { $ne: null, $ne: '' } }).sort({ alumniCode: -1 }).select('alumniCode').exec();
     const teacherCodeQuery = await Teacher.findOne({ teacherCode: { $ne: null, $ne: '' } }).sort({ teacherCode: -1 }).select('teacherCode').exec();
@@ -70,7 +64,7 @@ const getHighestNumericalID = async () => {
 
 
 // =========================================================================
-// 1. GENERAL REGISTRATION & OTP FUNCTIONS (Alumni/Teacher)
+// 1. GENERAL REGISTRATION & OTP FUNCTIONS (UNCHANGED)
 // =========================================================================
 
 export const sendOtp = async (req, res) => {
@@ -149,7 +143,7 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
 
 
 // =========================================================================
-// 2. GENERAL LOGIN FUNCTIONS (Alumni/Teacher)
+// 2. GENERAL LOGIN FUNCTIONS (UNCHANGED)
 // =========================================================================
 
 export const loginOtpSend = async (req, res) => {
@@ -239,7 +233,7 @@ export const login = async (req, res) => {
 
 
 // =========================================================================
-// 3. ADMIN PANEL AUTHENTICATION HANDLERS
+// 3. ADMIN PANEL AUTHENTICATION HANDLERS (UNCHANGED)
 // =========================================================================
 
 export const adminRegister = async (req, res) => {
@@ -307,7 +301,7 @@ export const adminLogin = async (req, res) => {
 
 
 // =========================================================================
-// 4. SUPER ADMIN MANAGEMENT HANDLERS (New Admin Management Logic)
+// 4. SUPER ADMIN MANAGEMENT HANDLERS (UPDATED)
 // =========================================================================
 
 /**
@@ -316,8 +310,8 @@ export const adminLogin = async (req, res) => {
  */
 export const handleGetAllPendingAdmins = async (req, res) => {
     try {
-        const alumniPending = await Alumni.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified');
-        const teacherPending = await Teacher.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified');
+        const alumniPending = await Alumni.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id');
+        const teacherPending = await Teacher.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id');
         const pendingAdmins = [...alumniPending, ...teacherPending];
         res.status(200).json(pendingAdmins);
     } catch (error) {
@@ -379,19 +373,28 @@ export const handleRejectAdmin = async (req, res) => {
  * Gets all users (Alumni and Teachers) excluding the Super Admin for role management panel.
  */
 export const handleGetAllUsers = async (req, res) => {
-    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
+    // 💡 FIX: Ensure the email is retrieved robustly from environment variables
+    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
     try {
-        const alumni = await Alumni.find().select('fullName email role alumniCode isVerified _id');
-        const teachers = await Teacher.find().select('fullName email role teacherCode isVerified _id');
+        // Use select to retrieve all necessary fields
+        const selectFields = 'fullName email role alumniCode teacherCode isVerified _id';
         
-        const allUsers = [...alumni, ...teachers];
+        const alumni = await Alumni.find().select(selectFields);
+        const teachers = await Teacher.find().select(selectFields);
+        
+        // Combine and map to ensure consistency (handle null/undefined codes)
+        const allUsers = [...alumni, ...teachers].map(u => ({
+            ...u.toObject(),
+            alumniCode: u.alumniCode || u.teacherCode, // Use the correct code based on model
+        }));
         
         const filteredUsers = allUsers.filter(u => u.email !== SUPER_ADMIN_EMAIL);
         
         res.json(filteredUsers.sort((a, b) => a.fullName.localeCompare(b.fullName)));
     } catch (err) {
-        console.error('Error fetching all users:', err.message);
-        res.status(500).send('Server Error');
+        // CRITICAL: Log the detailed error to the server console
+        console.error('CRITICAL ERROR fetching all users:', err);
+        res.status(500).send('Server Error fetching user list.');
     }
 };
 
@@ -408,7 +411,7 @@ export const handleUpdateUserRole = async (req, res) => {
     
     // Safety Check: Prevent modifying the Super Admin's role
     const userToUpdate = await findUserById(id);
-    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
+    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
 
     if (userToUpdate && userToUpdate.email === SUPER_ADMIN_EMAIL) {
          return res.status(403).json({ msg: 'Cannot modify the Super Admin role via this endpoint.' });
@@ -432,7 +435,7 @@ export const handleUpdateUserRole = async (req, res) => {
 
 
 // =========================================================================
-// 5. PASSWORD RESET FUNCTIONS (Unchanged)
+// 5. PASSWORD RESET FUNCTIONS (UNCHANGED)
 // =========================================================================
 
 export const forgotPassword = async (req, res) => {
