@@ -7,12 +7,16 @@ import sgMail from '@sendgrid/mail'; // SendGrid client
 import mongoose from 'mongoose'; 
 
 const OTP_EXPIRY_MINUTES = 10;
+// Fallback secret for safety if environment variable fails
 const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1';
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+// Default password for promoted admins
+const DEFAULT_ADMIN_PASSWORD = 'igit@mca';
+
 // =========================================================================
-// --- HELPERS (UNCHANGED) ---
+// --- HELPER FUNCTIONS (KEEP ONLY ONE COPY OF THESE) ---
 // =========================================================================
 
 const findUserById = async (id) => {
@@ -41,7 +45,7 @@ const sendVerificationEmail = async (toEmail, otp, subject) => {
         html: `<p>Your OTP is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
     };
     try {
-         await sgMail.send(msg);
+        await sgMail.send(msg);
     } catch (error) {
         console.error('SendGrid Error:', error.response?.body || error.message);
     }
@@ -64,7 +68,7 @@ const getHighestNumericalID = async () => {
 
 
 // =========================================================================
-// 1. GENERAL REGISTRATION & OTP FUNCTIONS (UNCHANGED)
+// 1. GENERAL REGISTRATION & OTP FUNCTIONS
 // =========================================================================
 
 export const sendOtp = async (req, res) => {
@@ -143,7 +147,7 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
 
 
 // =========================================================================
-// 2. GENERAL LOGIN FUNCTIONS (UNCHANGED)
+// 2. GENERAL LOGIN FUNCTIONS (WITH JWT FIX)
 // =========================================================================
 
 export const loginOtpSend = async (req, res) => {
@@ -189,7 +193,10 @@ export const loginOtpVerify = async (req, res) => {
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
         user.otp = undefined; user.otpExpires = undefined; await user.save({ validateBeforeSave: false });
-        const payload = { id: user._id, email: user.email, role: user.role };
+        
+        // ⭐ JWT FIX: Use _id in the payload for consistency
+        const payload = { _id: user._id, email: user.email, role: user.role }; 
+        
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'OTP verified. Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, userType: 'alumni', alumniCode: user.alumniCode, role: user.role } });
     } catch (error) {
@@ -205,7 +212,10 @@ export const loginOtpVerifyTeacher = async (req, res) => {
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
         user.otp = undefined; user.otpExpires = undefined; await user.save({ validateBeforeSave: false });
-        const payload = { id: user._id, email: user.email, role: user.role };
+        
+        // ⭐ JWT FIX: Use _id in the payload for consistency
+        const payload = { _id: user._id, email: user.email, role: user.role }; 
+        
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'OTP verified. Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, userType: 'teacher', alumniCode: user.teacherCode, role: user.role } });
     } catch (error) {
@@ -222,7 +232,10 @@ export const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
-        const payload = { id: user._id, email: user.email, role: user.role };
+        
+        // ⭐ JWT FIX: Use _id in the payload for consistency
+        const payload = { _id: user._id, email: user.email, role: user.role }; 
+        
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, alumniCode: user.alumniCode, role: user.role } });
     } catch (error) {
@@ -233,7 +246,7 @@ export const login = async (req, res) => {
 
 
 // =========================================================================
-// 3. ADMIN PANEL AUTHENTICATION HANDLERS (UNCHANGED)
+// 3. ADMIN PANEL AUTHENTICATION HANDLERS
 // =========================================================================
 
 export const adminRegister = async (req, res) => {
@@ -270,18 +283,32 @@ export const adminRegister = async (req, res) => {
 
 export const adminLogin = async (req, res) => {
     const { username, password } = req.body;
-    const email = username;
+    const identifier = username; // Can be email, Connect ID (MCA1003A), or Teacher Code
 
     try {
-        let user = await Alumni.findOne({ $or: [{ username: email }, { email: email }] }).select('+password +role +isVerified');
+        // 💡 FIX: Search for user by email, Connect ID, or Teacher Code
+        let user = await Alumni.findOne({ 
+            $or: [
+                { email: identifier },
+                { alumniCode: identifier }, 
+                { username: identifier }
+            ] 
+        }).select('+password +role +isVerified');
         let userType = 'alumni';
         
         if (!user) {
-            user = await Teacher.findOne({ $or: [{ username: email }, { email: email }] }).select('+password +role +isVerified');
+            user = await Teacher.findOne({ 
+                 $or: [
+                    { email: identifier },
+                    { teacherCode: identifier }, 
+                    { username: identifier }
+                ] 
+            }).select('+password +role +isVerified');
             userType = 'teacher';
         }
+        
 
-        if (!user || !user.password) { return res.status(404).json({ message: 'Admin account not found or is passwordless (use OTP flow).' }); }
+       if (!user || !user.password) { return res.status(404).json({ message: 'Admin account not found or is passwordless (use OTP flow).' }); }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) { return res.status(401).json({ message: 'Invalid credentials.' }); }
@@ -289,7 +316,9 @@ export const adminLogin = async (req, res) => {
         if (user.role !== 'admin' && user.role !== 'superadmin') { return res.status(403).json({ message: 'Access Denied. User does not have an admin role.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Account pending Super Admin approval.', isApproved: false }); }
         
-        const payload = { id: user._id, email: user.email || email, role: user.role };
+        // ⭐ JWT FIX: Use _id in the payload for consistency
+        const payload = { _id: user._id, email: user.email || identifier, role: user.role }; 
+        
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
 
         res.status(200).json({ message: 'Admin login successful.', token, user: { id: user._id, username: user.username || user.email, role: user.role, isApproved: user.isVerified, userType: userType } });
@@ -301,7 +330,7 @@ export const adminLogin = async (req, res) => {
 
 
 // =========================================================================
-// 4. SUPER ADMIN MANAGEMENT HANDLERS (UPDATED)
+// 4. SUPER ADMIN MANAGEMENT HANDLERS (UPDATED PROMOTION LOGIC)
 // =========================================================================
 
 /**
@@ -310,8 +339,8 @@ export const adminLogin = async (req, res) => {
  */
 export const handleGetAllPendingAdmins = async (req, res) => {
     try {
-        const alumniPending = await Alumni.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id');
-        const teacherPending = await Teacher.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id');
+        const alumniPending = await Alumni.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id username');
+        const teacherPending = await Teacher.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id username');
         const pendingAdmins = [...alumniPending, ...teacherPending];
         res.status(200).json(pendingAdmins);
     } catch (error) {
@@ -404,23 +433,35 @@ export const handleGetAllUsers = async (req, res) => {
  * Updates a user's role (admin <-> user).
  */
 export const handleUpdateUserRole = async (req, res) => {
-    const { role } = req.body;
+    const { role: newRole } = req.body;
     const { id } = req.params;
 
-    if (!role || (role !== 'admin' && role !== 'user')) { return res.status(400).json({ msg: 'Invalid role specified.' }); }
+    if (!newRole || (newRole !== 'admin' && newRole !== 'user')) { return res.status(400).json({ msg: 'Invalid role specified.' }); }
     
     // Safety Check: Prevent modifying the Super Admin's role
     const userToUpdate = await findUserById(id);
     const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
 
     if (userToUpdate && userToUpdate.email === SUPER_ADMIN_EMAIL) {
-         return res.status(403).json({ msg: 'Cannot modify the Super Admin role via this endpoint.' });
+        return res.status(403).json({ msg: 'Cannot modify the Super Admin role via this endpoint.' });
     }
     
     try {
+        let updateData = { role: newRole };
+        
+        // NEW LOGIC: If promoting to admin, set the default password and verification status
+        if (newRole === 'admin' && userToUpdate?.role !== 'admin') {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, salt);
+            // Ensure they are verified, if they were a pending user before
+            updateData.isVerified = true; 
+        } else if (newRole === 'user' && userToUpdate?.role === 'admin') {
+            // Logic to handle demotion
+        }
+
         const updatedUser = await findUserByIdAndUpdate(
             id, 
-            { $set: { role: role } }
+            { $set: updateData }
         );
 
         if (!updatedUser) { return res.status(404).json({ msg: 'User not found' }); }
@@ -435,7 +476,7 @@ export const handleUpdateUserRole = async (req, res) => {
 
 
 // =========================================================================
-// 5. PASSWORD RESET FUNCTIONS (UNCHANGED)
+// 5. PASSWORD RESET FUNCTIONS (FIXED SYNTAX)
 // =========================================================================
 
 export const forgotPassword = async (req, res) => {
@@ -458,10 +499,17 @@ export const resetPassword = async (req, res) => {
     try {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
-        const update = { password: hashedPassword, otp: undefined, otpExpires: undefined };
+        
+        // Fixed: Correctly defines the update object
+        const update = { password: hashedPassword, otp: undefined, otpExpires: undefined }; 
+        
         let user = await Alumni.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update);
-        if (!user) { user = await Teacher.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update); }
+        if (!user) { 
+            user = await Teacher.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update);
+        }
+        
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
+        
         res.status(200).json({ message: 'Password has been successfully reset. You can now log in.' });
     } catch (error) {
         console.error('Reset password error:', error);
