@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose from 'mongoose'; // <-- Make sure this is present
 import CareerProfile from '../models/CareerProfile.js';
 // ⭐ CRITICAL IMPORTS: Need access to the primary user models to fetch the permanent email
 import Alumni from '../models/Alumni.js';
@@ -32,6 +32,9 @@ export const saveCareerProfile = async (req, res) => {
 
     // ⭐ 2. FETCH PERMANENT DATA FROM PRIMARY USER ACCOUNT
     const primaryUser = await findPrimaryUser(userId);
+    // ⭐ LOG 1 ⭐
+    console.log("Fetched Primary User:", JSON.stringify(primaryUser, null, 2));
+
 
     if (!primaryUser || !primaryUser.email) {
         return res.status(404).json({ success: false, message: 'Primary user account not found or email is missing. Cannot create profile.' });
@@ -77,108 +80,94 @@ export const saveCareerProfile = async (req, res) => {
     // --- 4. Handle Resume File from Multer (req.file) ---
     const fileInfo = {};
     if (req.file) {
-        // Multer successfully uploaded the file; save its path and metadata
-        // Ensure you are saving the correct path or identifier based on your storage setup (e.g., local path, S3 URL, Cloudinary ID)
-        fileInfo.resumePath = req.file.path; // Example: 'uploads/resume-16665...'
-        fileInfo.resumeFilename = req.file.originalname; // Example: 'MyResume.pdf'
+        fileInfo.resumePath = req.file.path;
+        fileInfo.resumeFilename = req.file.originalname;
         fileInfo.resumeUploadedAt = new Date();
-        // Clear any previous 'upload_later' flag if a file is now uploaded
         fileInfo.uploadLater = undefined;
     } else {
-        // If no file was uploaded, check the 'upload later' flag from the *parsed* data
-        if (parsedProfileData.uploadLater === true) { // Explicitly check for true
+        if (parsedProfileData.uploadLater === true) {
              fileInfo.resumePath = 'upload_later';
-             // Optionally clear existing filename/date if they chose upload_later now
              fileInfo.resumeFilename = undefined;
              fileInfo.resumeUploadedAt = undefined;
         } else {
-            // If no file and not uploadLater, keep existing file info (if any)
-            // This prevents accidentally deleting file info on profile edits that don't include a new file
+           // Keep existing file info
         }
     }
 
     // --- 5. Combine and Clean Data ---
     const dataToSave = {
-        ...parsedProfileData, // Spread parsed data first
-        ...fileInfo,          // Spread file info (overwrites resumePath/Filename if file uploaded/uploadLater)
-        userId: userId,       // CRITICAL: Link to the authenticated user
-        // ⭐ PERMANENT FIX: OVERWRITE personalEmail with the verified primary user email.
-        personalEmail: primaryUser.email,
+        ...parsedProfileData,
+        ...fileInfo,
+        userId: userId,
+        personalEmail: primaryUser.email, // Use primaryUser email
     };
 
-    // Clean up temporary client-side flags that shouldn't be saved in DB
-    delete dataToSave.resumeFile; // This was the File object, not needed now
-    delete dataToSave.uploadLater; // This flag is handled by fileInfo logic
+    // ⭐ LOG 2 ⭐
+    console.log("Data BEFORE final save:", JSON.stringify(dataToSave, null, 2));
 
-    // ***** THE ONLY CHANGE IS REMOVING THE LINE BELOW *****
-    // delete dataToSave.personalEmail; // <-- REMOVED THIS LINE
+    delete dataToSave.resumeFile;
+    delete dataToSave.uploadLater;
 
     try {
         // 6. Use upsert to create or update the profile based on the unique userId
         const updatedProfile = await CareerProfile.findOneAndUpdate(
-            { userId: userId }, // Query ONLY by the unique user's ID
-            { $set: dataToSave }, // Use $set to update only provided fields
-            {
-                new: true,         // Return the updated document
-                upsert: true,      // Create if it doesn't exist
-                runValidators: true, // Run Mongoose schema validation
-                setDefaultsOnInsert: true // Apply schema defaults on creation
-            }
-        ).lean(); // Use .lean() for a plain JS object result
+            { userId: userId },
+            { $set: dataToSave },
+            { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+        ).lean();
+
+        // ⭐ LOG 3 ⭐
+        console.log("Data AFTER save (returned by Mongoose):", JSON.stringify(updatedProfile, null, 2));
+
 
         if (!updatedProfile) {
-            // This case should theoretically not happen with upsert: true unless there's a DB issue
             return res.status(500).json({ success: false, message: 'Profile could not be created or updated due to an unexpected issue.' });
         }
 
-        console.log(`Profile for user ${userId} saved successfully. Email: ${updatedProfile.personalEmail}`);
+        console.log(`Profile for user ${userId} saved successfully.`); // Removed email log here as it's in LOG 3
 
         // Send a successful response back to the client
         res.status(200).json({
             success: true,
             message: 'Career profile saved successfully!',
-            data: updatedProfile // Send back the saved/updated profile data
+            data: updatedProfile
         });
 
     } catch (error) {
         console.error('Error saving career profile:', error);
-
-        // Handle Mongoose Validation Errors
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
-            return res.status(400).json({ success: false, message: messages.join('. ') }); // Join with period and space
+            return res.status(400).json({ success: false, message: messages.join('. ') });
         }
-
-        // Handle the unique index error (E11000) more specifically
         if (error.code === 11000) {
             let field = Object.keys(error.keyPattern)[0];
-            field = field === 'userId' ? 'user' : field; // Make message more user-friendly
-            return res.status(409).json({ success: false, message: `A profile already exists for this ${field}. You can only edit your existing profile.` }); // Use 409 Conflict
+            field = field === 'userId' ? 'user' : field;
+            return res.status(409).json({ success: false, message: `A profile already exists for this ${field}. You can only edit your existing profile.` });
         }
-
-        // General server error
         res.status(500).json({ success: false, message: 'An unexpected server error occurred while saving the profile.' });
     }
 };
 
 // --- GET My Career Profile (GET /api/career-profile/me) ---
+// (No changes needed in getMyCareerProfile - kept for completeness)
 export const getMyCareerProfile = async (req, res) => {
-    const userId = req.user?._id; // User ID from the auth middleware
+    const userId = req.user?._id;
 
     if (!userId) {
         return res.status(401).json({ success: false, message: 'Not authorized.' });
     }
 
     try {
-        // Query remains simple and correct: find the profile linked to the logged-in user ID
-        const profile = await CareerProfile.findOne({ userId: userId }).lean(); // Use lean for performance
+        const profile = await CareerProfile.findOne({ userId: userId }).lean();
 
         if (!profile) {
-            // Returns 404, prompting the frontend to show the Profile Builder
             return res.status(404).json({ success: false, message: 'Career profile not found for this user.' });
         }
 
-        // Success: send the found profile
+        // ⭐ Log fetched data (optional, but helpful for debugging) ⭐
+        console.log("Data fetched by getMyCareerProfile:", JSON.stringify(profile, null, 2));
+
+
         res.status(200).json({ success: true, data: profile });
 
     } catch (error) {
