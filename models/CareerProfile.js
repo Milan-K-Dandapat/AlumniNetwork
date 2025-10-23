@@ -14,13 +14,12 @@ const CareerProfileSchema = new mongoose.Schema({
         index: true, // Add index for faster lookups by userId
     },
 
-    // ⭐ CRITICAL CHANGE 1: Enforce immutability and uniqueness on personalEmail ⭐
-    // This email will be fetched from the primary user account in the controller and set once.
+    // ⭐ personalEmail: Removed immutable flag ⭐
     personalEmail: {
         type: String,
         required: [true, 'Primary personal email is required.'],
-        unique: true,   // Ensures no two profiles share the same primary email
-        immutable: true, // Prevents updates to this field after the document is created
+        unique: true,   // Ensures uniqueness AND creates the necessary index
+        // immutable: true, // <-- REMOVED THIS LINE
         trim: true,      // Automatically remove leading/trailing whitespace
         lowercase: true, // Store email in lowercase for consistency
         match: [/.+\@.+\..+/, 'Please fill a valid email address'], // Basic email format validation
@@ -126,6 +125,7 @@ const CareerProfileSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Removed redundant index definition as 'unique: true' handles it for personalEmail
 // CareerProfileSchema.index({ personalEmail: 1 });
 
 export default mongoose.model('CareerProfile', CareerProfileSchema);
