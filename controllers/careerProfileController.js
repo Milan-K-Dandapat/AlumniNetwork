@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import CareerProfile from '../models/CareerProfile.js';
 // ⭐ CRITICAL IMPORTS: Need access to the primary user models to fetch the permanent email
 import Alumni from '../models/Alumni.js';
