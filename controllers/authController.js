@@ -12,11 +12,11 @@ const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// 💡 NEW CONSTANT: Default password for promoted admins
+// Default password for promoted admins
 const DEFAULT_ADMIN_PASSWORD = 'igit@mca';
 
 // =========================================================================
-// --- HELPERS (UNCHANGED) ---
+// --- HELPER FUNCTIONS (KEEP ONLY ONE COPY OF THESE) ---
 // =========================================================================
 
 const findUserById = async (id) => {
@@ -45,7 +45,7 @@ const sendVerificationEmail = async (toEmail, otp, subject) => {
         html: `<p>Your OTP is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
     };
     try {
-         await sgMail.send(msg);
+        await sgMail.send(msg);
     } catch (error) {
         console.error('SendGrid Error:', error.response?.body || error.message);
     }
@@ -68,7 +68,7 @@ const getHighestNumericalID = async () => {
 
 
 // =========================================================================
-// 1. GENERAL REGISTRATION & OTP FUNCTIONS (UNCHANGED)
+// 1. GENERAL REGISTRATION & OTP FUNCTIONS
 // =========================================================================
 
 export const sendOtp = async (req, res) => {
@@ -147,7 +147,7 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
 
 
 // =========================================================================
-// 2. GENERAL LOGIN FUNCTIONS (UNCHANGED)
+// 2. GENERAL LOGIN FUNCTIONS (WITH JWT FIX)
 // =========================================================================
 
 export const loginOtpSend = async (req, res) => {
@@ -194,7 +194,7 @@ export const loginOtpVerify = async (req, res) => {
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
         user.otp = undefined; user.otpExpires = undefined; await user.save({ validateBeforeSave: false });
         
-        // ⭐ RECOMMENDED CHANGE: Use _id in the payload
+        // ⭐ JWT FIX: Use _id in the payload for consistency
         const payload = { _id: user._id, email: user.email, role: user.role }; 
         
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
@@ -213,7 +213,7 @@ export const loginOtpVerifyTeacher = async (req, res) => {
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
         user.otp = undefined; user.otpExpires = undefined; await user.save({ validateBeforeSave: false });
         
-        // ⭐ RECOMMENDED CHANGE: Use _id in the payload
+        // ⭐ JWT FIX: Use _id in the payload for consistency
         const payload = { _id: user._id, email: user.email, role: user.role }; 
         
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
@@ -233,7 +233,7 @@ export const login = async (req, res) => {
         if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
         
-        // ⭐ RECOMMENDED CHANGE: Use _id in the payload
+        // ⭐ JWT FIX: Use _id in the payload for consistency
         const payload = { _id: user._id, email: user.email, role: user.role }; 
         
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
@@ -246,7 +246,7 @@ export const login = async (req, res) => {
 
 
 // =========================================================================
-// 3. ADMIN PANEL AUTHENTICATION HANDLERS (UNCHANGED)
+// 3. ADMIN PANEL AUTHENTICATION HANDLERS
 // =========================================================================
 
 export const adminRegister = async (req, res) => {
@@ -316,7 +316,7 @@ export const adminLogin = async (req, res) => {
         if (user.role !== 'admin' && user.role !== 'superadmin') { return res.status(403).json({ message: 'Access Denied. User does not have an admin role.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: 'Account pending Super Admin approval.', isApproved: false }); }
         
-        // ⭐ RECOMMENDED CHANGE: Use _id in the payload
+        // ⭐ JWT FIX: Use _id in the payload for consistency
         const payload = { _id: user._id, email: user.email || identifier, role: user.role }; 
         
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
@@ -334,180 +334,185 @@ export const adminLogin = async (req, res) => {
 // =========================================================================
 
 /**
- * @function handleGetAllPendingAdmins
- * Gets all user accounts registered as 'admin' but not yet verified (isVerified: false).
- */
+ * @function handleGetAllPendingAdmins
+ * Gets all user accounts registered as 'admin' but not yet verified (isVerified: false).
+ */
 export const handleGetAllPendingAdmins = async (req, res) => {
-    try {
-        const alumniPending = await Alumni.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id username');
-        const teacherPending = await Teacher.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id username');
-        const pendingAdmins = [...alumniPending, ...teacherPending];
-        res.status(200).json(pendingAdmins);
-    } catch (error) {
-        console.error('Error fetching pending admins:', error);
-        res.status(500).json({ message: 'Server error fetching pending admin list.' });
-    }
+    try {
+        const alumniPending = await Alumni.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id username');
+        const teacherPending = await Teacher.find({ role: 'admin', isVerified: false }).select('fullName email role isVerified _id username');
+        const pendingAdmins = [...alumniPending, ...teacherPending];
+        res.status(200).json(pendingAdmins);
+    } catch (error) {
+        console.error('Error fetching pending admins:', error);
+        res.status(500).json({ message: 'Server error fetching pending admin list.' });
+    }
 };
 
 
 /**
- * @function handleApproveAdmin
- * Sets a pending admin's 'isVerified' field to true and sets the role to 'admin'.
- */
+ * @function handleApproveAdmin
+ * Sets a pending admin's 'isVerified' field to true and sets the role to 'admin'.
+ */
 export const handleApproveAdmin = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const approvedUser = await findUserByIdAndUpdate(
-            id, 
-            { $set: { isVerified: true, role: 'admin' } }
-        );
+    const { id } = req.params;
+    try {
+        const approvedUser = await findUserByIdAndUpdate(
+            id, 
+            { $set: { isVerified: true, role: 'admin' } }
+        );
 
-        if (!approvedUser) { return res.status(404).json({ message: 'User not found.' }); }
-        
-        res.status(200).json({ 
-            message: 'Admin account approved.',
-            user: { _id: approvedUser._id, email: approvedUser.email, fullName: approvedUser.fullName, role: approvedUser.role, isVerified: approvedUser.isVerified }
-        });
+        if (!approvedUser) { return res.status(404).json({ message: 'User not found.' }); }
+        
+        res.status(200).json({ 
+            message: 'Admin account approved.',
+            user: { _id: approvedUser._id, email: approvedUser.email, fullName: approvedUser.fullName, role: approvedUser.role, isVerified: approvedUser.isVerified }
+        });
 
-    } catch (error) {
-        console.error('Error approving admin:', error);
-        res.status(500).json({ message: 'Server error during admin approval.' });
-    }
+    } catch (error) {
+        console.error('Error approving admin:', error);
+        res.status(500).json({ message: 'Server error during admin approval.' });
+    }
 };
 
 
 /**
- * @function handleRejectAdmin
- * Deletes an unapproved user from the database.
- */
+ * @function handleRejectAdmin
+ * Deletes an unapproved user from the database.
+ */
 export const handleRejectAdmin = async (req, res) => {
-    const { id } = req.params;
-    try {
-        let result = await Alumni.findByIdAndDelete(id);
-        if (!result) { result = await Teacher.findByIdAndDelete(id); }
+    const { id } = req.params;
+    try {
+        let result = await Alumni.findByIdAndDelete(id);
+        if (!result) { result = await Teacher.findByIdAndDelete(id); }
 
-        if (!result) { return res.status(404).json({ message: 'User not found.' }); }
+        if (!result) { return res.status(404).json({ message: 'User not found.' }); }
 
-        res.status(200).json({ message: 'Admin registration rejected and account deleted.' });
+        res.status(200).json({ message: 'Admin registration rejected and account deleted.' });
 
-    } catch (error) {
-        console.error('Error rejecting admin:', error);
-        res.status(500).json({ message: 'Server error during admin rejection.' });
-    }
+    } catch (error) {
+        console.error('Error rejecting admin:', error);
+        res.status(500).json({ message: 'Server error during admin rejection.' });
+    }
 };
 
 
 /**
- * @function handleGetAllUsers
- * Gets all users (Alumni and Teachers) excluding the Super Admin for role management panel.
- */
+ * @function handleGetAllUsers
+ * Gets all users (Alumni and Teachers) excluding the Super Admin for role management panel.
+ */
 export const handleGetAllUsers = async (req, res) => {
-    // 💡 FIX: Ensure the email is retrieved robustly from environment variables
-    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
-    try {
-        // Use select to retrieve all necessary fields
-        const selectFields = 'fullName email role alumniCode teacherCode isVerified _id';
-        
-        const alumni = await Alumni.find().select(selectFields);
-        const teachers = await Teacher.find().select(selectFields);
-        
-        // Combine and map to ensure consistency (handle null/undefined codes)
-        const allUsers = [...alumni, ...teachers].map(u => ({
-            ...u.toObject(),
-            alumniCode: u.alumniCode || u.teacherCode, // Use the correct code based on model
-        }));
-        
-        const filteredUsers = allUsers.filter(u => u.email !== SUPER_ADMIN_EMAIL);
-        
-        res.json(filteredUsers.sort((a, b) => a.fullName.localeCompare(b.fullName)));
-    } catch (err) {
-        // CRITICAL: Log the detailed error to the server console
-        console.error('CRITICAL ERROR fetching all users:', err);
-        res.status(500).send('Server Error fetching user list.');
-    }
+    // 💡 FIX: Ensure the email is retrieved robustly from environment variables
+    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
+    try {
+        // Use select to retrieve all necessary fields
+        const selectFields = 'fullName email role alumniCode teacherCode isVerified _id';
+        
+        const alumni = await Alumni.find().select(selectFields);
+        const teachers = await Teacher.find().select(selectFields);
+        
+        // Combine and map to ensure consistency (handle null/undefined codes)
+        const allUsers = [...alumni, ...teachers].map(u => ({
+            ...u.toObject(),
+            alumniCode: u.alumniCode || u.teacherCode, // Use the correct code based on model
+        }));
+        
+        const filteredUsers = allUsers.filter(u => u.email !== SUPER_ADMIN_EMAIL);
+        
+        res.json(filteredUsers.sort((a, b) => a.fullName.localeCompare(b.fullName)));
+    } catch (err) {
+        // CRITICAL: Log the detailed error to the server console
+        console.error('CRITICAL ERROR fetching all users:', err);
+        res.status(500).send('Server Error fetching user list.');
+    }
 };
 
 
 /**
- * @function handleUpdateUserRole
- * Updates a user's role (admin <-> user).
- */
+ * @function handleUpdateUserRole
+ * Updates a user's role (admin <-> user).
+ */
 export const handleUpdateUserRole = async (req, res) => {
-    const { role: newRole } = req.body;
-    const { id } = req.params;
+    const { role: newRole } = req.body;
+    const { id } = req.params;
 
-    if (!newRole || (newRole !== 'admin' && newRole !== 'user')) { return res.status(400).json({ msg: 'Invalid role specified.' }); }
-    
-    // Safety Check: Prevent modifying the Super Admin's role
-    const userToUpdate = await findUserById(id);
-    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
+    if (!newRole || (newRole !== 'admin' && newRole !== 'user')) { return res.status(400).json({ msg: 'Invalid role specified.' }); }
+    
+    // Safety Check: Prevent modifying the Super Admin's role
+    const userToUpdate = await findUserById(id);
+    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
 
-    if (userToUpdate && userToUpdate.email === SUPER_ADMIN_EMAIL) {
-         return res.status(403).json({ msg: 'Cannot modify the Super Admin role via this endpoint.' });
-    }
-    
-    try {
-        let updateData = { role: newRole };
-        
-        // 💡 NEW LOGIC: If promoting to admin, set the default password and verification status
+    if (userToUpdate && userToUpdate.email === SUPER_ADMIN_EMAIL) {
+        return res.status(403).json({ msg: 'Cannot modify the Super Admin role via this endpoint.' });
+    }
+    
+    try {
+        let updateData = { role: newRole };
+        
+        // NEW LOGIC: If promoting to admin, set the default password and verification status
         if (newRole === 'admin' && userToUpdate?.role !== 'admin') {
             const salt = await bcrypt.genSalt(10);
             updateData.password = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, salt);
             // Ensure they are verified, if they were a pending user before
             updateData.isVerified = true; 
         } else if (newRole === 'user' && userToUpdate?.role === 'admin') {
-            // Optional: If revoking admin, clear the password if it matches the default one
-            // NOTE: For simplicity and security, we'll just keep the hashed password but downgrade the role.
-            // If you want to force them back to OTP/Email login, you'd clear the password field, but that's complex.
+            // Logic to handle demotion
         }
 
-        const updatedUser = await findUserByIdAndUpdate(
-            id, 
-            { $set: updateData }
-        );
+        const updatedUser = await findUserByIdAndUpdate(
+            id, 
+            { $set: updateData }
+        );
 
-        if (!updatedUser) { return res.status(404).json({ msg: 'User not found' }); }
+        if (!updatedUser) { return res.status(404).json({ msg: 'User not found' }); }
 
-        res.json({ id: updatedUser._id, role: updatedUser.role, email: updatedUser.email }); 
-    } catch (err) {
-        console.error('Error updating user role:', err.message);
-        if (err.kind === 'ObjectId') { return res.status(400).json({ message: 'Invalid User ID format' }); }
-        res.status(500).send('Server Error');
-    }
+        res.json({ id: updatedUser._id, role: updatedUser.role, email: updatedUser.email }); 
+    } catch (err) {
+        console.error('Error updating user role:', err.message);
+        if (err.kind === 'ObjectId') { return res.status(400).json({ message: 'Invalid User ID format' }); }
+        res.status(500).send('Server Error');
+    }
 };
 
 
 // =========================================================================
-// 5. PASSWORD RESET FUNCTIONS (UNCHANGED)
+// 5. PASSWORD RESET FUNCTIONS (FIXED SYNTAX)
 // =========================================================================
 
 export const forgotPassword = async (req, res) => {
-    const { email } = req.body;
-    try {
-        const otp = crypto.randomInt(100000, 999999).toString();
-        const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-        let user = await Alumni.findOneAndUpdate({ email }, { $set: { otp, otpExpires } });
-        if (!user) { user = await Teacher.findOneAndUpdate({ email }, { $set: { otp, otpExpires } }); }
-        if (user) { await sendVerificationEmail(email, otp, 'Alumni Password Reset Code'); }
-        res.status(200).json({ message: 'If this email is registered, a password reset OTP will be sent.' });
-    } catch (error) {
-        console.error('Forgot password error:', error);
-        res.status(500).json({ message: 'Server error. Could not send reset email.' });
-    }
+    const { email } = req.body;
+    try {
+        const otp = crypto.randomInt(100000, 999999).toString();
+        const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+        let user = await Alumni.findOneAndUpdate({ email }, { $set: { otp, otpExpires } });
+        if (!user) { user = await Teacher.findOneAndUpdate({ email }, { $set: { otp, otpExpires } }); }
+        if (user) { await sendVerificationEmail(email, otp, 'Alumni Password Reset Code'); }
+        res.status(200).json({ message: 'If this email is registered, a password reset OTP will be sent.' });
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ message: 'Server error. Could not send reset email.' });
+    }
 };
 
 export const resetPassword = async (req, res) => {
-    const { email, otp, newPassword } = req.body;
-    try {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-        const update = { password: hashedPassword, otp: undefined, otpExpires: undefined };
-        let user = await Alumni.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update);
-        if (!user) { user = await Teacher.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update); }
-        if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
-        res.status(200).json({ message: 'Password has been successfully reset. You can now log in.' });
-    } catch (error) {
-        console.error('Reset password error:', error);
-        res.status(500).json({ message: 'Server error during OTP verification.' });
-    }
+    const { email, otp, newPassword } = req.body;
+    try {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+        
+        // Fixed: Correctly defines the update object
+        const update = { password: hashedPassword, otp: undefined, otpExpires: undefined }; 
+        
+        let user = await Alumni.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update);
+        if (!user) { 
+            user = await Teacher.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update);
+        }
+        
+        if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
+        
+        res.status(200).json({ message: 'Password has been successfully reset. You can now log in.' });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ message: 'Server error during OTP verification.' });
+    }
 };
