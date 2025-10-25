@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const alumniSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    phoneNumber: { type: String, required: true },
+    phoneNumber: { type: String, required: false },
     location: { type: String, required: true },
     batch: { type: Number, required: true },
     company: { type: String },

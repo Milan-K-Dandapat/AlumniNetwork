@@ -18,14 +18,14 @@ const teacherSchema = new mongoose.Schema({
     },
     phoneNumber: { 
         type: String, 
-        required: true 
+        required: false
     },
     location: {
         type: String,
         required: true
     },
     
-    // 🚀 NEW FIELD ADDED: UNIQUE TEACHER/FACULTY CODE (MCAxxxxF format)
+   // NEW FIELD ADDED: UNIQUE TEACHER/FACULTY CODE (MCAxxxxF format)
     teacherCode: {
         type: String,
         unique: true,   // IMPORTANT: Ensures no two faculty members have the same code
