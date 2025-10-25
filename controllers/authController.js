@@ -76,15 +76,28 @@ const getHighestNumericalID = async () => {
 
 export const sendOtp = async (req, res) => {
     const { email, fullName, batch, phoneNumber, location, company, position } = req.body;
-    if (!email || !fullName || !batch || !phoneNumber || !location) { return res.status(400).json({ message: 'All required fields must be filled.' }); }
+    
+    // --- ✅ FIX: Removed !phoneNumber from this validation check ---
+    if (!email || !fullName || !batch || !location) { 
+        return res.status(400).json({ message: 'All required fields must be filled.' }); 
+    }
+    // -----------------------------------------------------------------
+
     try {
         let alumni = await Alumni.findOne({ email });
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-        const alumniData = { fullName, email, phoneNumber, location, batch, otp, otpExpires, isVerified: false };
+        
+        // --- ✅ FIX: This logic correctly handles the optional phone number ---
+        const alumniData = { fullName, email, location, batch, otp, otpExpires, isVerified: false };
+        if (phoneNumber) alumniData.phoneNumber = phoneNumber; // Only add if it exists
+        // ----------------------------------------------------------------------
+
         if (company) alumniData.company = company;
         if (position) alumniData.position = position;
+        
         if (alumni) { alumni.set(alumniData); await alumni.save(); } else { await Alumni.create(alumniData); }
+        
         await sendVerificationEmail(email, otp, 'Your AlumniConnect Verification Code');
         res.status(200).json({ message: 'OTP sent successfully to your email.' });
     } catch (error) {
@@ -114,13 +127,25 @@ export const verifyOtpAndRegister = async (req, res) => {
 
 export const sendOtpTeacher = async (req, res) => {
     const { email, fullName, phoneNumber, location, department, designation } = req.body;
-    if (!email || !fullName || !phoneNumber || !location || !department || !designation) { return res.status(400).json({ message: 'All required fields must be filled.' }); }
+
+    // --- ✅ FIX: Removed !phoneNumber from this validation check ---
+    if (!email || !fullName || !location || !department || !designation) { 
+        return res.status(400).json({ message: 'All required fields must be filled.' }); 
+    }
+    // -----------------------------------------------------------------
+
     try {
         let teacher = await Teacher.findOne({ email });
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-        const teacherData = { fullName, email, phoneNumber, location, department, designation, otp, otpExpires, isVerified: false };
+        
+        // --- ✅ FIX: This logic correctly handles the optional phone number ---
+        const teacherData = { fullName, email, location, department, designation, otp, otpExpires, isVerified: false };
+        if (phoneNumber) teacherData.phoneNumber = phoneNumber; // Only add if it exists
+        // ----------------------------------------------------------------------
+
         if (teacher) { teacher.set(teacherData); await teacher.save(); } else { await Teacher.create(teacherData); }
+        
         await sendVerificationEmail(email, otp, 'Faculty Registration Verification Code');
         res.status(200).json({ message: 'OTP sent successfully to your faculty email.' });
     } catch (error) {
@@ -186,7 +211,7 @@ export const loginOtpSendTeacher = async (req, res) => {
     } catch (error) {
         console.error('Login OTP send error (Teacher):', error);
         res.status(500).json({ message: 'Server error. Could not send OTP.' });
-    }
+   }
 };
 
 export const loginOtpVerify = async (req, res) => {
@@ -221,7 +246,7 @@ export const loginOtpVerifyTeacher = async (req, res) => {
         
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'OTP verified. Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, userType: 'teacher', alumniCode: user.teacherCode, role: user.role } });
-    } catch (error) {
+   } catch (error) {
         console.error('Login OTP Verify Error (Teacher):', error);
         res.status(500).json({ message: 'Server error during OTP verification.' });
     }
@@ -238,13 +263,13 @@ export const login = async (req, res) => {
         
         // ⭐ THIS IS CORRECT (No change needed)
         const payload = { _id: user._id, email: user.email, role: user.role }; 
-        
+      
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
         res.status(200).json({ message: 'Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, alumniCode: user.alumniCode, role: user.role } });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ message: 'Server error.' });
-    }
+  }
 };
 
 
@@ -281,7 +306,7 @@ export const adminRegister = async (req, res) => {
     } catch (error) {
         console.error('Admin Registration Error:', error);
         res.status(500).json({ message: 'Failed to register admin account.' });
-    }
+ }
 };
 
 export const adminLogin = async (req, res) => {
@@ -301,7 +326,7 @@ export const adminLogin = async (req, res) => {
         
         if (!user) {
             user = await Teacher.findOne({ 
-                 $or: [
+                 $or: [
                     { email: identifier },
                     { teacherCode: identifier }, 
                     { username: identifier }
@@ -320,7 +345,7 @@ export const adminLogin = async (req, res) => {
         
         // ⭐ THIS IS CORRECT (No change needed)
         // This payload provides the `_id` that your frontend and middleware need.
-        const payload = { _id: user._id, email: user.email || identifier, role: user.role }; 
+       const payload = { _id: user._id, email: user.email || identifier, role: user.role }; 
         
         const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
 
@@ -358,58 +383,58 @@ export const handleGetAllPendingAdmins = async (req, res) => {
  * Sets a pending admin's 'isVerified' field to true and sets the role to 'admin'.
  */
 export const handleApproveAdmin = async (req, res) => {
-    const { id } = req.params;
-    try {
-        // Use findByIdAndUpdate to get the updated user document
-        const approvedUser = await findUserByIdAndUpdate(
-            id,
-            { $set: { isVerified: true, role: 'admin' } }, // Assuming approval always makes them 'admin' - adjust if needed
-            { new: true } // Return the modified document
-        );
+    const { id } = req.params;
+    try {
+        // Use findByIdAndUpdate to get the updated user document
+        const approvedUser = await findUserByIdAndUpdate(
+            id,
+            { $set: { isVerified: true, role: 'admin' } }, // Assuming approval always makes them 'admin' - adjust if needed
+            { new: true } // Return the modified document
+        );
 
-        if (!approvedUser) {
-            return res.status(404).json({ message: 'User not found.' });
-        }
+        if (!approvedUser) {
+            return res.status(404).json({ message: 'User not found.' });
+       }
 
-        // --- ⭐ SEND VERIFICATION EMAIL ---
-        if (approvedUser.email) {
-            const msg = {
-                to: approvedUser.email,
-                from: process.env.EMAIL_USER || 'igitmcaalumni@gmail.com', // Use sender from env or fallback
-                subject: '🎉 Congratulations! Your Alumni Network Account is Verified!',
-                html: `
-                    <p>Hello ${approvedUser.fullName || 'Alumnus/Faculty'},</p>
-                    <p>Great news! Your account for the IGIT MCA Alumni Network has been verified by an administrator.</p>
-                    <p>You can now log in and access all the features of the network.</p>
-                    <p>Welcome aboard!</p>
-                    <br/>
-                    <p>Best regards,</p>
-                    <p>The IGIT MCA Alumni Network Team</p>
-                `,
-            };
-            try {
-                await sgMail.send(msg);
-                console.log(`Verification email sent successfully to ${approvedUser.email}`);
-            } catch (emailError) {
-                console.error(`Failed to send verification email to ${approvedUser.email}:`, emailError.response?.body || emailError.message);
-                // Decide if you want to return an error to the admin or just log it
-                // For now, we'll just log it and proceed with the success response for the approval itself
-            }
-        } else {
-            console.warn(`User ${approvedUser._id} approved but has no email address. Cannot send verification email.`);
-        }
-        // --- END SEND VERIFICATION EMAIL ---
+        // --- ⭐ SEND VERIFICATION EMAIL ---
+        if (approvedUser.email) {
+            const msg = {
+                to: approvedUser.email,
+                from: process.env.EMAIL_USER || 'igitmcaalumni@gmail.com', // Use sender from env or fallback
+                subject: '🎉 Congratulations! Your Alumni Network Account is Verified!',
+                html: `
+                    <p>Hello ${approvedUser.fullName || 'Alumnus/Faculty'},</p>
+                    <p>Great news! Your account for the IGIT MCA Alumni Network has been verified by an administrator.</p>
+                    <p>You can now log in and access all the features of the network.</p>
+                 <p>Welcome aboard!</p>
+                    <br/>
+                    <p>Best regards,</p>
+                <p>The IGIT MCA Alumni Network Team</p>
+                `,
+            };
+            try {
+                await sgMail.send(msg);
+               console.log(`Verification email sent successfully to ${approvedUser.email}`);
+            } catch (emailError) {
+                console.error(`Failed to send verification email to ${approvedUser.email}:`, emailError.response?.body || emailError.message);
+                // Decide if you want to return an error to the admin or just log it
+                // For now, we'll just log it and proceed with the success response for the approval itself
+           }
+        } else {
+            console.warn(`User ${approvedUser._id} approved but has no email address. Cannot send verification email.`);
+        }
+        // --- END SEND VERIFICATION EMAIL ---
 
-        // Send success response for the approval action
-        res.status(200).json({
-            message: 'Admin account approved successfully. Verification email sent.', // Updated message
-            user: { _id: approvedUser._id, email: approvedUser.email, fullName: approvedUser.fullName, role: approvedUser.role, isVerified: approvedUser.isVerified }
-        });
+        // Send success response for the approval action
+        res.status(200).json({
+            message: 'Admin account approved successfully. Verification email sent.', // Updated message
+            user: { _id: approvedUser._id, email: approvedUser.email, fullName: approvedUser.fullName, role: approvedUser.role, isVerified: approvedUser.isVerified }
+        });
 
-    } catch (error) {
-        console.error('Error approving admin:', error);
-        res.status(500).json({ message: 'Server error during admin approval.' });
-    }
+    } catch (error) {
+        console.error('Error approving admin:', error);
+        res.status(500).json({ message: 'Server error during admin approval.' });
+ }
 };
 
 /**
@@ -427,7 +452,7 @@ export const handleRejectAdmin = async (req, res) => {
         res.status(200).json({ message: 'Admin registration rejected and account deleted.' });
 
     } catch (error) {
-        console.error('Error rejecting admin:', error);
+     console.error('Error rejecting admin:', error);
         res.status(500).json({ message: 'Server error during admin rejection.' });
     }
 };
@@ -451,14 +476,14 @@ export const handleGetAllUsers = async (req, res) => {
         const allUsers = [...alumni, ...teachers].map(u => ({
             ...u.toObject(),
             alumniCode: u.alumniCode || u.teacherCode, // Use the correct code based on model
-        }));
+     }));
         
         const filteredUsers = allUsers.filter(u => u.email !== SUPER_ADMIN_EMAIL);
         
         res.json(filteredUsers.sort((a, b) => a.fullName.localeCompare(b.fullName)));
     } catch (err) {
         // CRITICAL: Log the detailed error to the server console
-        console.error('CRITICAL ERROR fetching all users:', err);
+      console.error('CRITICAL ERROR fetching all users:', err);
         res.status(500).send('Server Error fetching user list.');
     }
 };
@@ -469,7 +494,7 @@ export const handleGetAllUsers = async (req, res) => {
  * Updates a user's role (admin <-> user).
  */
 export const handleUpdateUserRole = async (req, res) => {
-    const { role: newRole } = req.body;
+   const { role: newRole } = req.body;
     const { id } = req.params;
 
     if (!newRole || (newRole !== 'admin' && newRole !== 'user')) { return res.status(400).json({ msg: 'Invalid role specified.' }); }
@@ -486,13 +511,13 @@ export const handleUpdateUserRole = async (req, res) => {
         let updateData = { role: newRole };
         
         // NEW LOGIC: If promoting to admin, set the default password and verification status
-        if (newRole === 'admin' && userToUpdate?.role !== 'admin') {
+      if (newRole === 'admin' && userToUpdate?.role !== 'admin') {
             const salt = await bcrypt.genSalt(10);
             updateData.password = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, salt);
             // Ensure they are verified, if they were a pending user before
             updateData.isVerified = true; 
         } else if (newRole === 'user' && userToUpdate?.role === 'admin') {
-            // Logic to handle demotion
+        // Logic to handle demotion
         }
 
         const updatedUser = await findUserByIdAndUpdate(
@@ -503,7 +528,7 @@ export const handleUpdateUserRole = async (req, res) => {
         if (!updatedUser) { return res.status(404).json({ msg: 'User not found' }); }
 
         res.json({ id: updatedUser._id, role: updatedUser.role, email: updatedUser.email }); 
-    } catch (err) {
+   } catch (err) {
         console.error('Error updating user role:', err.message);
         if (err.kind === 'ObjectId') { return res.status(400).json({ message: 'Invalid User ID format' }); }
         res.status(500).send('Server Error');
@@ -516,7 +541,7 @@ export const handleUpdateUserRole = async (req, res) => {
 // =========================================================================
 
 export const forgotPassword = async (req, res) => {
-    const { email } = req.body;
+   const { email } = req.body;
     try {
         const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
@@ -525,31 +550,31 @@ export const forgotPassword = async (req, res) => {
         if (user) { await sendVerificationEmail(email, otp, 'Alumni Password Reset Code'); }
         res.status(200).json({ message: 'If this email is registered, a password reset OTP will be sent.' });
 
-    } catch (error) {
+   } catch (error) {
         console.error('Forgot password error:', error);
         res.status(500).json({ message: 'Server error. Could not send reset email.' });
     }
 };
 
 export const resetPassword = async (req, res) => {
-   const { email, otp, newPassword } = req.body;
+   const { email, otp, newPassword } = req.body;
     try {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
         
         // Fixed: Correctly defines the update object
         const update = { password: hashedPassword, otp: undefined, otpExpires: undefined }; 
-     
+     
         let user = await Alumni.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update);
         if (!user) { 
             user = await Teacher.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update);
-        }
+     }
         
         if (!user) { return res.status(400).json({ message: 'Invalid or expired OTP.' }); }
         
         res.status(200).json({ message: 'Password has been successfully reset. You can now log in.' });
     } catch (error) {
-        console.error('Reset password error:', error);
+       console.error('Reset password error:', error);
         res.status(500).json({ message: 'Server error during OTP verification.' });
     }
 };
