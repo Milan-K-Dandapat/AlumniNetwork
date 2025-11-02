@@ -43,7 +43,6 @@ router.get('/:folderPath', async (req, res) => { // Removed 'auth' middleware he
         });
     } catch (error) {
         console.error('Cloudinary Gallery Fetch Failure:', error);
-        // Ensure this error is not returning sensitive info
         res.status(500).json({ message: 'Server failed to fetch gallery resources (Check Cloudinary credentials or folder name).' });
     }
 });
