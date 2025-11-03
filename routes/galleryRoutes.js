@@ -1,15 +1,8 @@
 import express from 'express';
 import { v2 as cloudinary } from 'cloudinary';
-// Removed: import auth from '../middleware/auth.js'; // Removed if authentication is handled outside
-// Note: If you have an index router file, ensure 'auth' is not applied globally.
-
 const router = express.Router();
 
-// @route   GET /api/gallery/:folderPath
-// @desc    Fetches all images/videos from a specified Cloudinary folder path
-// @access  Public (Authentication middleware 'auth' is REMOVED for public access)
-router.get('/:folderPath', async (req, res) => { // Removed 'auth' middleware here
-    // Decode the folder path from the URL
+router.get('/:folderPath', async (req, res) => { 
     const encodedFolderPath = req.params.folderPath;
     const folderPath = decodeURIComponent(encodedFolderPath); 
 
@@ -18,7 +11,7 @@ router.get('/:folderPath', async (req, res) => { // Removed 'auth' middleware he
     }
 
     try {
-        // Use the standard folder search expression
+
         const expression = `folder=${folderPath}`;
         
         const result = await cloudinary.search
@@ -26,7 +19,6 @@ router.get('/:folderPath', async (req, res) => { // Removed 'auth' middleware he
             .max_results(200)
             .execute();
 
-        // Filter out resources that are not images or videos and extract secure_url
         const galleryUrls = result.resources
             .filter(r => r.resource_type === 'image' || r.resource_type === 'video')
             .map(r => r.secure_url);
