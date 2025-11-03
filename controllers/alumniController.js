@@ -1,15 +1,15 @@
 import Alumni from '../models/Alumni.js';
+// Assumes services/emailService.js is located one directory up from the controllers folder
+import { sendCongratulatoryEmail } from '../services/emailService.js'; 
 
 /**
- * @desc    Get all alumni profiles (both verified and unverified)
- * @route   GET /api/alumni
- * @access  Private (Requires auth)
+ * @desc    Get all alumni profiles (both verified and unverified)
+ * @route   GET /api/alumni
+ * @access  Private (Requires auth)
  */
 export const getAlumni = async (req, res) => {
     try {
-        // This is correct, it fetches ALL alumni for admins/users
         const alumni = await Alumni.find({}).sort({ createdAt: -1 });
-        
         res.status(200).json(alumni);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching alumni', error: error.message });
@@ -17,20 +17,18 @@ export const getAlumni = async (req, res) => {
 };
 
 /**
- * @desc    Verify an alumni profile
- * @route   PATCH /api/alumni/:id/verify
- * @access  Private (Admin / SuperAdmin)
+ * @desc    Verify an alumni profile
+ * @route   PATCH /api/alumni/:id/verify
+ * @access  Private (Admin / SuperAdmin)
  */
 export const verifyAlumni = async (req, res) => {
     try {
-        // --- NEW SECURITY CHECK ---
-        // Get user details from the auth middleware
+        // --- SECURITY CHECK (Ensures only Admin/SuperAdmin can execute) ---
         const userRole = req.user.role;
         const isSuperAdmin = req.user.email === 'milankumar7770@gmail.com';
 
-        // Only allow 'admin' or 'superadmin' to verify
         if (userRole !== 'admin' && !isSuperAdmin) {
-             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
         // --- END SECURITY CHECK ---
 
@@ -39,11 +37,22 @@ export const verifyAlumni = async (req, res) => {
         if (!alumni) {
             return res.status(404).json({ message: 'Alumni not found' });
         }
+        
+        // 1. Check current verification status BEFORE updating
+        const wasVerified = alumni.isVerified;
 
+        // 2. Perform verification update
         alumni.isVerified = true;
         const updatedAlumni = await alumni.save();
         
-        // Send back the updated user, which the frontend expects
+        // 3. ⭐ EMAIL LOGIC: Send email ONLY if the user was NOT previously verified ⭐
+        if (!wasVerified && updatedAlumni.isVerified) {
+            // Call the email service asynchronously so the verification request remains fast
+            sendCongratulatoryEmail(updatedAlumni.email, updatedAlumni.fullName);
+        }
+        // ---------------------------------------------------------------------
+        
+        // 4. Send back the updated user
         res.status(200).json(updatedAlumni);
 
     } catch (error) {
@@ -54,9 +63,9 @@ export const verifyAlumni = async (req, res) => {
 
 
 /**
- * @desc    Delete an alumni profile
- * @route   DELETE /api/alumni/:id
- * @access  Private (Admin / SuperAdmin)
+ * @desc    Delete an alumni profile
+ * @route   DELETE /api/alumni/:id
+ * @access  Private (Admin / SuperAdmin)
  */
 export const deleteAlumni = async (req, res) => {
     try {
@@ -66,7 +75,7 @@ export const deleteAlumni = async (req, res) => {
             return res.status(404).json({ message: 'Alumni not found' });
         }
 
-        // --- NEW SECURITY CHECK ---
+        // --- SECURITY CHECK ---
         const userRole = req.user.role;
         const isSuperAdmin = req.user.email === 'milankumar7770@gmail.com';
 
@@ -79,7 +88,7 @@ export const deleteAlumni = async (req, res) => {
         if (userRole === 'admin') {
             // Admin can ONLY delete unverified users
             if (alumni.isVerified) {
-                return res.status(403).json({ message: 'Access denied. Admins can only delete unverified users.' });
+                return res.status(403).json({ message: 'Access denied. Admins can only delete verified users.' });
             }
             
             await Alumni.findByIdAndDelete(req.params.id);
