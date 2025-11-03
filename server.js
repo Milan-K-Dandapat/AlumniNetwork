@@ -318,12 +318,18 @@ app.post('/api/register-free-event', async (req, res) => {
 });
 
 // POST /api/create-order - Initiates a Razorpay order for paid events
+// POST /api/create-order - Initiates a Razorpay order for paid events
 app.post('/api/create-order', async (req, res) => {
     try {
-        // Destructure necessary fields from the request body
-        const { amount, eventId, fullName, email, mobile, batch, purpose, guestCount, tShirtCount, tShirtSize, vegCount, nonVegCount } = req.body;
+        // 1. Destructure all fields from the request body (ensuring all schema fields are captured)
+        const { 
+            amount, eventId, fullName, email, mobile, batch, purpose, 
+            guestCount, tShirtCount, tShirtSize, vegCount, nonVegCount, 
+            donation, state, district, gender, designation 
+        } = req.body;
         
         if (!amount || amount <= 0) {
+             // This condition should prevent a 500 but should lead to a client-side error.
              return res.status(400).json({ message: 'Amount is invalid or missing for payment order.' });
         }
         
@@ -334,38 +340,50 @@ app.post('/api/create-order', async (req, res) => {
             amount: orderAmountInPaisa,
             currency: 'INR',
             receipt: `receipt_${Date.now()}_${eventId}`,
-            payment_capture: 1, // Auto-capture payment
+            payment_capture: 1, 
         };
 
-        // 1. Create the Razorpay Order
+        // 2. Create the Razorpay Order
         const razorpayOrder = await razorpay.orders.create(options);
 
-        // 2. Create a pending RegistrationPayment entry
+        // 3. Create a pending RegistrationPayment entry
         const registration = new RegistrationPayment({
             eventId,
+            eventTitle: purpose, // Map purpose to eventTitle for schema
             userId: null, 
             fullName,
             email,
             mobile,
             batch,
-            purpose,
+            state, 
+            district, 
+            gender, 
+            designation,
+
+            guestCount, 
+            tShirtCount, 
+            tShirtSize, 
+            vegCount, 
+            nonVegCount,
+            donation, // Included donation field
+            
             amount,
             paymentStatus: 'pending',
+
+            // Razorpay IDs
+            razorpay_order_id: razorpayOrder.id, // Direct map to schema field
+
+            // Custom payment details object (for reference)
             paymentDetails: {
                 orderId: razorpayOrder.id,
                 paymentId: 'N/A',
                 signature: 'N/A',
             },
-            guestCount, 
-            tShirtCount, 
-            tShirtSize, 
-            vegCount, 
-            nonVegCount
         });
 
         await registration.save();
 
-        // 3. Send order details back to the frontend
+        // 4. Send order details back to the frontend
         res.json({
             order: razorpayOrder,
             registrationId: registration._id,
@@ -373,7 +391,14 @@ app.post('/api/create-order', async (req, res) => {
 
     } catch (error) {
         console.error('Error creating Razorpay order:', error);
-        res.status(500).json({ message: 'Failed to create payment order.', error: error.message });
+        
+        // 💡 FIX: Check for Mongoose Validation Error 
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            return res.status(400).json({ message: `Validation Failed (Paid Event): ${messages.join(', ')}` });
+        }
+        
+        res.status(500).json({ message: 'Failed to create payment order. Check backend console for details.', error: error.message });
     }
 });
 
