@@ -1,14 +1,13 @@
 import nodemailer from 'nodemailer';
 
-// Configure your email transporter using environment variables
+// --- SENDGRID CONFIGURATION ---
 const transporter = nodemailer.createTransport({
-    // Use your email host (e.g., smtp.sendgrid.net, smtp.gmail.com)
-    host: process.env.SMTP_HOST || 'smtp.example.com', 
-    port: process.env.SMTP_PORT || 587,
-    secure: process.env.SMTP_SECURE === 'true' || false, 
+    host: 'smtp.sendgrid.net', 
+    port: 587, 
+    secure: false, 
     auth: {
-        user: process.env.SMTP_USER || 'your_smtp_username', 
-        pass: process.env.SMTP_PASS || 'your_smtp_password', 
+        user: 'apikey', 
+        pass: process.env.SENDGRID_API_KEY, 
     },
 });
 
@@ -18,10 +17,12 @@ const transporter = nodemailer.createTransport({
  * @param {string} fullName - The recipient's full name.
  */
 export const sendCongratulatoryEmail = async (toEmail, fullName) => {
+    // We are prioritizing the server-side DOMAIN_URL variable here.
+    const domainUrl = process.env.DOMAIN_URL || process.env.REACT_APP_DOMAIN_URL || 'http://localhost:3000';
+    
     try {
         const mailOptions = {
-            // IMPORTANT: Set a valid 'from' address
-            from: `IGIT MCA Alumni Network <${process.env.SMTP_USER || 'no-reply@yourdomain.com'}>`, 
+            from: `IGIT MCA Alumni Network <${process.env.EMAIL_USER || 'no-reply@yourdomain.com'}>`, 
             to: toEmail,
             subject: '🎉 Congratulations! Your Alumni Profile is Verified',
             html: `
@@ -36,7 +37,7 @@ export const sendCongratulatoryEmail = async (toEmail, fullName) => {
                         <p style="font-size: 1.1em; font-weight: bold; color: #4f46e5;">You can now log in and enjoy full access to the Alumni Directory, networking features, events, and all community resources.</p>
 
                         <div style="text-align: center; margin: 30px 0;">
-                            <a href="${process.env.REACT_APP_DOMAIN_URL || 'http://localhost:3000'}/login" 
+                            <a href="${domainUrl}/login" 
                                 style="background-color: #10b981; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                                 Go to Login
                             </a>
@@ -56,6 +57,6 @@ export const sendCongratulatoryEmail = async (toEmail, fullName) => {
         console.log("Congratulatory email sent: %s", info.messageId);
 
     } catch (error) {
-        console.error("Error sending congratulatory email:", error.message);
+        console.error("CRITICAL EMAIL FAILURE: Error sending congratulatory email. Check SendGrid API key and configuration:", error.message);
     }
 };
