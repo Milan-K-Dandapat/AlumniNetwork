@@ -396,33 +396,33 @@ export const handleApproveAdmin = async (req, res) => {
             return res.status(404).json({ message: 'User not found.' });
        }
 
-        // --- ⭐ SEND VERIFICATION EMAIL ---
-        if (approvedUser.email) {
-            const msg = {
-                to: approvedUser.email,
-                from: process.env.EMAIL_USER || 'igitmcaalumni@gmail.com', // Use sender from env or fallback
-                subject: '🎉 Congratulations! Your Alumni Network Account is Verified!',
-                html: `
-                    <p>Hello ${approvedUser.fullName || 'Alumnus/Faculty'},</p>
-                    <p>Great news! Your account for the IGIT MCA Alumni Network has been verified by an administrator.</p>
-                    <p>You can now log in and access all the features of the network.</p>
-                 <p>Welcome aboard!</p>
-                    <br/>
-                    <p>Best regards,</p>
-                <p>The IGIT MCA Alumni Network Team</p>
-                `,
-            };
-            try {
-                await sgMail.send(msg);
-               console.log(`Verification email sent successfully to ${approvedUser.email}`);
-            } catch (emailError) {
-                console.error(`Failed to send verification email to ${approvedUser.email}:`, emailError.response?.body || emailError.message);
-                // Decide if you want to return an error to the admin or just log it
-                // For now, we'll just log it and proceed with the success response for the approval itself
-           }
-        } else {
-            console.warn(`User ${approvedUser._id} approved but has no email address. Cannot send verification email.`);
-        }
+//         // --- ⭐ SEND VERIFICATION EMAIL ---
+//         if (approvedUser.email) {
+//             const msg = {
+//                 to: approvedUser.email,
+//                 from: process.env.EMAIL_USER || 'igitmcaalumni@gmail.com', // Use sender from env or fallback
+//                 subject: '🎉 Congratulations! Your Alumni Network Account is Verified!',
+//                 html: `
+//                     <p>Hello ${approvedUser.fullName || 'Alumnus/Faculty'},</p>
+//                     <p>Great news! Your account for the IGIT MCA Alumni Network has been verified by an administrator.</p>
+//                     <p>You can now log in and access all the features of the network.</p>
+//                  <p>Welcome aboard!</p>
+//                     <br/>
+//                     <p>Best regards,</p>
+//                 <p>The IGIT MCA Alumni Network Team</p>
+//                 `,
+//             };
+//             try {
+//                 await sgMail.send(msg);
+//                console.log(`Verification email sent successfully to ${approvedUser.email}`);
+//             } catch (emailError) {
+//                 console.error(`Failed to send verification email to ${approvedUser.email}:`, emailError.response?.body || emailError.message);
+//                 // Decide if you want to return an error to the admin or just log it
+//                 // For now, we'll just log it and proceed with the success response for the approval itself
+//            }
+//         } else {
+//             console.warn(`User ${approvedUser._id} approved but has no email address. Cannot send verification email.`);
+//         }
         // --- END SEND VERIFICATION EMAIL ---
 
         // Send success response for the approval action
