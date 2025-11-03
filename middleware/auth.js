@@ -11,12 +11,20 @@ import jwt from 'jsonwebtoken';
  * MUST be used *after* the 'auth' middleware.
  */
 
-// Fetches the JWT secret from environment variables or uses a fallback
+// --- CONSISTENT SECRET DEFINITION (THE FIX) ---
+// Define a single, consistent secret. Make sure this exact string 
+// is used by your login route to SIGN the tokens.
+const FALLBACK_SECRET = 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1';
+
 const getSecret = () => {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-        console.warn("⚠️ JWT_SECRET is not set. Using fallback secret.");
-        return 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d7e9f2a4b6c8d0e1f3a5b7c9d1e3f5a7b9c1';
+    // Priority: 1. Environment Variable, 2. Hardcoded Fallback
+    const secret = process.env.JWT_SECRET || FALLBACK_SECRET;
+    
+    // IMPORTANT: Log the secret being used on the deployed server for debugging
+    console.log(`Using JWT Secret: ${secret.substring(0, 5)}...`); 
+
+    if (secret === FALLBACK_SECRET) {
+        console.warn("⚠️ JWT_SECRET is not set in ENV. Using fallback secret for verification.");
     }
     return secret;
 }
@@ -40,9 +48,10 @@ const auth = (req, res, next) => {
         }
 
         const token = tokenParts[1];
+        const secretKey = getSecret(); // Get the consistent secret
 
-        // 3. Verify the token
-        const decoded = jwt.verify(token, getSecret());
+        // 3. Verify the token using the consistent secret
+        const decoded = jwt.verify(token, secretKey);
 
         // 4. Validate and attach user data from the token payload
         const userId = decoded._id || decoded.id;
@@ -72,7 +81,7 @@ const auth = (req, res, next) => {
         if (err.name === 'TokenExpiredError') {
             errorMessage = 'Token expired. Please log in again.';
         } else if (err.name === 'JsonWebTokenError') {
-            errorMessage = 'Invalid token signature.';
+            errorMessage = 'Invalid token signature. (Check JWT_SECRET consistency.)'; // Added helpful note
         }
 
         // 401: JWT verification failed for any reason
@@ -96,7 +105,9 @@ export const isAdmin = (req, res, next) => {
 // --- 3. AUTHORIZATION (Are you the designated Super Admin?) ---
 export const isSuperAdmin = (req, res, next) => {
     // Retrieve the hardcoded/environmental Super Admin Email for the check
-    const SUPER_ADMIN_EMAIL = process.env.REACT_APP_SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
+    // NOTE: This uses process.env.REACT_APP_SUPER_ADMIN_EMAIL which is a client-side variable. 
+    // In a server environment, it should just be process.env.SUPER_ADMIN_EMAIL.
+    const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com'; 
 
     const userEmail = req.user?.email;
     
