@@ -68,7 +68,7 @@ export const verifyAlumni = async (req, res) => {
                     </div>
                     <div style="padding: 32px; text-align: center; color: #333;">
                         <img 
-                            src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbDB2eHZvazN5bTJlYjRoc3hicmJ1dnNqM3JhdTVqY3lsaXJiY291eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/T9uDekxx68i2gB01n2/giphy.gif" 
+                            src="https://i.giphy.com/media/T9uDekxx68i2gB01n2/giphy.gif" 
                             alt="Verified Checkmark" 
                             width="100" 
                             style="margin-bottom: 24px;"
