@@ -1,13 +1,17 @@
 import Teacher from '../models/Teacher.js';
-// Assumes services/emailService.js is located one directory up from the controllers folder
-import { sendCongratulatoryEmail } from '../services/emailService.js'; 
+import sgMail from '@sendgrid/mail'; // <-- 1. IMPORT SENDGRID
 
 const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com';
 
+// --- 2. SET YOUR API KEY ---
+// (Make sure SENDGRID_API_KEY is in your .env file)
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// -----------------------------
+
 /**
- * @desc    Get all teacher profiles (both verified and unverified)
- * @route   GET /api/teachers
- * @access  Private (Requires auth)
+ * @desc    Get all teacher profiles (both verified and unverified)
+ * @route   GET /api/teachers
+ * @access  Private (Requires auth)
  */
 export const getTeachers = async (req, res) => {
     try {
@@ -20,18 +24,18 @@ export const getTeachers = async (req, res) => {
 };
 
 /**
- * @desc    Verify a teacher profile
- * @route   PATCH /api/teachers/:id/verify
- * @access  Private (Admin / SuperAdmin)
+ * @desc    Verify a teacher profile
+ * @route   PATCH /api/teachers/:id/verify
+ * @access  Private (Admin / SuperAdmin)
  */
 export const verifyTeacher = async (req, res) => {
     try {
-        // --- SECURITY CHECK (Ensures only Admin/SuperAdmin can execute) ---
+        // --- SECURITY CHECK ---
         const userRole = req.user.role;
         const isSuperAdmin = req.user.email === SUPER_ADMIN_EMAIL;
 
         if (userRole !== 'admin' && !isSuperAdmin) {
-            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
         // --- END SECURITY CHECK ---
 
@@ -40,22 +44,74 @@ export const verifyTeacher = async (req, res) => {
         if (!teacher) {
             return res.status(404).json({ message: 'Teacher not found' });
         }
-        
-        // 1. Check current verification status BEFORE updating
-        const wasVerified = teacher.isVerified;
 
-        // 2. Perform verification update
+        // 1. UPDATE THE USER IN THE DATABASE
         teacher.isVerified = true;
         const updatedTeacher = await teacher.save();
-
-        // 3. ⭐ EMAIL LOGIC: Send email ONLY if the teacher was NOT previously verified ⭐
-        if (!wasVerified && updatedTeacher.isVerified) {
-            // Call the email service asynchronously
-            sendCongratulatoryEmail(updatedTeacher.email, updatedTeacher.fullName);
-        }
-        // -------------------------------------------------------------------------
         
-        // 4. Send back the updated user
+        // --- 📧 START SENDGRID EMAIL LOGIC ---
+        try {
+            // 2. DEFINE THE EMAIL MESSAGE
+            const msg = {
+                to: updatedTeacher.email, // The user's email from the database
+                
+                // 🚨 IMPORTANT: Change this to your VERIFIED sender email in SendGrid
+                from: 'mcaigitalumni@gmail.com', 
+                
+                // Subject line specific to Faculty
+                subject: '🎉 Congratulations! Your Faculty Account is Verified!',
+                
+                // Plain text fallback
+                text: `Hello ${updatedTeacher.fullName},\n\nCongratulations! Your faculty account on the Alumni Network has been successfully reviewed and verified by an administrator. You can now log in to access the full directory and connect with members.\n\nLog in here: https://your-website-login-page.com/login\n\nBest regards,\nThe Alumni Network Team`,
+                
+                // The same animated HTML template
+                html: `
+                <div style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                    <div style="background-color: #0d133d; color: white; padding: 24px; text-align: center;">
+                        <h1 style="margin: 0; font-size: 28px;">Account Verified!</h1>
+                    </div>
+                    <div style="padding: 32px; text-align: center; color: #333;">
+                        <img 
+                            src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbDB2eHZvazN5bTJlYjRoc3hicmJ1dnNqM3JhdTVqY3lsaXJiY291eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/T9uDekxx68i2gB01n2/giphy.gif" 
+                            alt="Verified Checkmark" 
+                            width="100" 
+                            style="margin-bottom: 24px;"
+                        />
+                        <h2 style="font-size: 24px; color: #0d133d; margin-bottom: 16px;">
+                            Hello, ${updatedTeacher.fullName}!
+                        </h2>
+                        <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+                            Congratulations! Your account on the <strong>Alumni Network</strong> has been successfully reviewed and verified by an administrator.
+                        </p>
+                        <p style="font-size: 16px; line-height: 1.6; margin-bottom: 32px;">
+                            You can now log in to access the full directory, connect with members, and explore all our features.
+                        </p>
+                        <a 
+                            href="https://igitmcaalumni.netlify.app/login" 
+                            style="background-color: #181be8; color: white; padding: 14px 28px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; display: inline-block;"
+                        >
+                            Log In Now
+                        </a>
+                    </div>
+                    <div style="background-color: #f4f4f4; color: #777; padding: 24px; text-align: center; font-size: 12px;">
+                        <p style="margin: 0;">Best regards,<br>The Alumni Network Team</p>
+                    </div>
+                </div>
+                `,
+            };
+            
+            // 3. SEND THE EMAIL
+            await sgMail.send(msg);
+            console.log(`Verification email sent to ${updatedTeacher.email}`);
+
+        } catch (emailError) {
+            // Log the email error, but don't fail the API request.
+            console.error('SendGrid Error: Failed to send verification email.', emailError.response?.body || emailError);
+        }
+        // --- 📧 END SENDGRID EMAIL LOGIC ---
+
+        
+        // 4. SEND SUCCESS RESPONSE TO ADMIN
         res.status(200).json(updatedTeacher);
 
     } catch (error) {
@@ -66,11 +122,12 @@ export const verifyTeacher = async (req, res) => {
 
 
 /**
- * @desc    Delete a teacher profile
- * @route   DELETE /api/teachers/:id
- * @access  Private (Admin / SuperAdmin)
+ * @desc    Delete a teacher profile
+ * @route   DELETE /api/teachers/:id
+ * @access  Private (Admin / SuperAdmin)
  */
 export const deleteTeacher = async (req, res) => {
+    // ... (Your delete logic is unchanged) ...
     try {
         const teacher = await Teacher.findById(req.params.id);
 
@@ -78,7 +135,7 @@ export const deleteTeacher = async (req, res) => {
             return res.status(404).json({ message: 'Teacher not found' });
         }
 
-        // --- SECURITY CHECK ---
+        // --- NEW SECURITY CHECK ---
         const userRole = req.user.role;
         const isSuperAdmin = req.user.email === SUPER_ADMIN_EMAIL;
 
