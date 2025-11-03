@@ -4,16 +4,16 @@ import sgMail from '@sendgrid/mail'; // <-- 1. IMPORT SENDGRID
 const SUPER_ADMIN_EMAIL = 'milankumar7770@gmail.com';
 
 // --- 2. SET YOUR API KEY ---
-// (Make sure SENDGRID_API_KEY is in your .env file)
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // -----------------------------
 
 /**
- * @desc    Get all teacher profiles (both verified and unverified)
+ * @desc    Get all teacher profiles
  * @route   GET /api/teachers
  * @access  Private (Requires auth)
  */
 export const getTeachers = async (req, res) => {
+    // ... (Your getTeachers logic is unchanged) ...
     try {
         const teachers = await Teacher.find({}).sort({ fullName: 1 });
         res.status(200).json(teachers);
@@ -49,25 +49,22 @@ export const verifyTeacher = async (req, res) => {
         teacher.isVerified = true;
         const updatedTeacher = await teacher.save();
         
-        // --- 📧 START SENDGRID EMAIL LOGIC ---
-        try {
-            // 2. DEFINE THE EMAIL MESSAGE
+        
+        // --- 📧 START MERGED SENDGRID LOGIC ---
+        if (updatedTeacher.email) {
             const msg = {
-                to: updatedTeacher.email, // The user's email from the database
+                to: updatedTeacher.email,
                 
-                // 🚨 IMPORTANT: Change this to your VERIFIED sender email in SendGrid
-                from: 'mcaigitalumni@gmail.com', 
+                // ✅ YOUR LOGIC: Using your 'from' address logic
+                from: process.env.EMAIL_USER || 'igitmcaalumni@gmail.com',
                 
-                // Subject line specific to Faculty
-                subject: '🎉 Congratulations! Your Faculty Account is Verified!',
+                // ✅ YOUR LOGIC: Using your requested emojis
+                subject: '🥳 ✅ Congratulations! Your Alumni Network Account is Verified!',
                 
-                // Plain text fallback
-                text: `Hello ${updatedTeacher.fullName},\n\nCongratulations! Your faculty account on the Alumni Network has been successfully reviewed and verified by an administrator. You can now log in to access the full directory and connect with members.\n\nLog in here: https://your-website-login-page.com/login\n\nBest regards,\nThe Alumni Network Team`,
-                
-                // The same animated HTML template
-                // This is the new HTML block. Paste this over the old one.
-html: `
+                // ✅ MY DESIGN: The full animated email template
+                html: `
 <style>
+    /* ... (all the CSS animation styles are here) ... */
     @keyframes draw-circle {
         from { stroke-dashoffset: 315; }
         to { stroke-dashoffset: 0; }
@@ -76,30 +73,17 @@ html: `
         from { stroke-dashoffset: 80; }
         to { stroke-dashoffset: 0; }
     }
-    .circle-bg {
-        fill: none;
-        stroke: #e6e6e6;
-        stroke-width: 8;
-    }
+    .circle-bg { fill: none; stroke: #e6e6e6; stroke-width: 8; }
     .circle-fg {
-        fill: none;
-        stroke: #0d133d; /* Dark Blue */
-        stroke-width: 8;
-        stroke-dasharray: 315;
-        stroke-dashoffset: 315;
-        animation: draw-circle 1s ease-out forwards;
-        animation-delay: 0.2s;
+        fill: none; stroke: #0d133d; stroke-width: 8;
+        stroke-dasharray: 315; stroke-dashoffset: 315;
+        animation: draw-circle 1s ease-out forwards; animation-delay: 0.2s;
     }
     .checkmark {
-        fill: none;
-        stroke: #181be8; /* Bright Blue */
-        stroke-width: 10;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        stroke-dasharray: 80;
-        stroke-dashoffset: 80;
-        animation: draw-check 0.5s ease-out forwards;
-        animation-delay: 0.8s;
+        fill: none; stroke: #181be8; stroke-width: 10;
+        stroke-linecap: round; stroke-linejoin: round;
+        stroke-dasharray: 80; stroke-dashoffset: 80;
+        animation: draw-check 0.5s ease-out forwards; animation-delay: 0.8s;
     }
 </style>
 <div style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
@@ -110,18 +94,16 @@ html: `
     
     <div style="padding: 40px; text-align: center; color: #333;">
         
-        <div style="width: 100px; height: 100px; margin: 0 auto 24px auto;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-                <circle class="circle-bg" cx="50" cy="50" r="47" />
-                <circle class="circle-fg" cx="50" cy="50" r="47" />
-                <path class="checkmark" d="M30 50 l20 20 l30 -30" />
-            </svg>
-        </div>
+        <img 
+            src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762210764/logo_bh9u8i.png" 
+            alt="IGIT MCA Alumni Network Logo" 
+            width="100" 
+            style="margin-bottom: 24px; border-radius: 8px;"
+        />
         
         <h2 style="font-size: 24px; color: #0d133d; margin-bottom: 16px;">
             Hello, ${
-                // This checks if we are in the alumni or teacher controller
-                // and uses the correct name.
+                // This logic correctly gets the name from either controller
                 updatedAlumni ? updatedAlumni.fullName : updatedTeacher.fullName
             }!
         </h2>
@@ -134,34 +116,32 @@ html: `
         </p>
         
         <a 
-            href="https://your-website-login-page.com/login" 
-            style="background: linear-gradient(135deg, #181be8 0%, #0d133d 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block; transition: transform 0.2s ease;"
-            onmouseover="this.style.transform='scale(1.05)'" 
-            onmouseout="this.style.transform='scale(1)'"
+            href="https://igitmcaalumni.netlify.app/login" 
+            style="background: linear-gradient(135deg, #181be8 0%, #0d133d 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;"
         >
             Log In Now
         </a>
     </div>
     
     <div style="background-color: #f9f9f9; color: #888; padding: 24px; text-align: center; font-size: 12px; border-top: 1px solid #eee;">
-        <p style="margin: 0;">Best regards,<br>The MCA Alumni Network Team</p>
+        <p style="margin: 0;">Best regards,<br>The IGIT MCA Alumni Network Team</p>
     </div>
 </div>
-`,
+`
             };
-            
-            // 3. SEND THE EMAIL
-            await sgMail.send(msg);
-            console.log(`Verification email sent to ${updatedTeacher.email}`);
-
-        } catch (emailError) {
-            // Log the email error, but don't fail the API request.
-            console.error('SendGrid Error: Failed to send verification email.', emailError.response?.body || emailError);
+            try {
+                await sgMail.send(msg);
+                console.log(`Verification email sent successfully to ${updatedTeacher.email}`);
+            } catch (emailError) {
+                console.error(`Failed to send verification email to ${updatedTeacher.email}:`, emailError.response?.body || emailError.message);
+            }
+        } else {
+            console.warn(`User ${updatedTeacher._id} approved but has no email address. Cannot send verification email.`);
         }
-        // --- 📧 END SENDGRID EMAIL LOGIC ---
+        // --- 📧 END MERGED SENDGRID LOGIC ---
 
         
-        // 4. SEND SUCCESS RESPONSE TO ADMIN
+        // 2. SEND SUCCESS RESPONSE TO ADMIN
         res.status(200).json(updatedTeacher);
 
     } catch (error) {
@@ -185,29 +165,23 @@ export const deleteTeacher = async (req, res) => {
             return res.status(404).json({ message: 'Teacher not found' });
         }
 
-        // --- NEW SECURITY CHECK ---
         const userRole = req.user.role;
         const isSuperAdmin = req.user.email === SUPER_ADMIN_EMAIL;
 
         if (isSuperAdmin) {
-            // Super admin can delete anyone
             await Teacher.findByIdAndDelete(req.params.id);
             return res.status(200).json({ message: 'Teacher profile deleted successfully' });
         } 
         
         if (userRole === 'admin') {
-            // Admin can ONLY delete unverified users
             if (teacher.isVerified) {
                 return res.status(403).json({ message: 'Access denied. Admins can only delete unverified users.' });
             }
-            
             await Teacher.findByIdAndDelete(req.params.id);
             return res.status(200).json({ message: 'Teacher profile deleted successfully' });
         }
         
-        // If not super admin or admin, deny access
         return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
-        // --- END SECURITY CHECK ---
 
     } catch (error) {
         console.error('Error deleting teacher:', error);
