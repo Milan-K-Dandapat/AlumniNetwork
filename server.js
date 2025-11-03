@@ -319,9 +319,10 @@ app.post('/api/register-free-event', async (req, res) => {
 
 // POST /api/create-order - Initiates a Razorpay order for paid events
 // POST /api/create-order - Initiates a Razorpay order for paid events
+// POST /api/create-order - Initiates a Razorpay order for paid events
 app.post('/api/create-order', async (req, res) => {
     try {
-        // 1. Destructure all fields from the request body (ensuring all schema fields are captured)
+        // 1. Destructure all fields from the request body
         const { 
             amount, eventId, fullName, email, mobile, batch, purpose, 
             guestCount, tShirtCount, tShirtSize, vegCount, nonVegCount, 
@@ -329,17 +330,23 @@ app.post('/api/create-order', async (req, res) => {
         } = req.body;
         
         if (!amount || amount <= 0) {
-             // This condition should prevent a 500 but should lead to a client-side error.
              return res.status(400).json({ message: 'Amount is invalid or missing for payment order.' });
         }
         
-        // Convert amount from Rupees to Paisa (Razorpay requirement)
+        // Convert amount from Rupees to Paisa
         const orderAmountInPaisa = Math.round(amount * 100); 
+
+        // 💡 FIX: Create a short, unique receipt ID (Max 40 chars).
+        // Using the last 8 digits of the eventId and a short timestamp.
+        const shortEventId = eventId.slice(-8);
+        const shortTimestamp = Date.now().toString().slice(-6);
+        const receiptId = `rct_${shortEventId}_${shortTimestamp}`; // Example: rct_08935c1_495000
 
         const options = {
             amount: orderAmountInPaisa,
             currency: 'INR',
-            receipt: `receipt_${Date.now()}_${eventId}`,
+            // 🚀 USING THE SHORTENED ID
+            receipt: receiptId, 
             payment_capture: 1, 
         };
 
@@ -349,7 +356,7 @@ app.post('/api/create-order', async (req, res) => {
         // 3. Create a pending RegistrationPayment entry
         const registration = new RegistrationPayment({
             eventId,
-            eventTitle: purpose, // Map purpose to eventTitle for schema
+            eventTitle: purpose,
             userId: null, 
             fullName,
             email,
@@ -365,15 +372,13 @@ app.post('/api/create-order', async (req, res) => {
             tShirtSize, 
             vegCount, 
             nonVegCount,
-            donation, // Included donation field
+            donation,
             
             amount,
             paymentStatus: 'pending',
 
-            // Razorpay IDs
-            razorpay_order_id: razorpayOrder.id, // Direct map to schema field
+            razorpay_order_id: razorpayOrder.id,
 
-            // Custom payment details object (for reference)
             paymentDetails: {
                 orderId: razorpayOrder.id,
                 paymentId: 'N/A',
@@ -392,16 +397,20 @@ app.post('/api/create-order', async (req, res) => {
     } catch (error) {
         console.error('Error creating Razorpay order:', error);
         
-        // 💡 FIX: Check for Mongoose Validation Error 
+        // Check for Mongoose Validation Error (in case other fields are missing)
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: `Validation Failed (Paid Event): ${messages.join(', ')}` });
         }
         
-        res.status(500).json({ message: 'Failed to create payment order. Check backend console for details.', error: error.message });
+        // Check specifically for Razorpay errors and return the BAD_REQUEST_ERROR
+        if (error.statusCode === 400 && error.error && error.error.reason === 'input_validation_failed') {
+             return res.status(400).json({ message: `Failed to create payment order: ${error.error.description}` });
+        }
+        
+        res.status(500).json({ message: 'Failed to create payment order. Internal server error.', error: error.message });
     }
 });
-
 // =========================================================================
 // 🛑 End of New Routes 🛑
 // =========================================================================
