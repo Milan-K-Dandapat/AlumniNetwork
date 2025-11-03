@@ -30,11 +30,12 @@ import donationRoutes from './routes/donationRoutes.js';
 import careerProfileRoutes from './routes/careerProfileRoutes.js';
 import jobRoutes from './routes/jobRoutes.js'; 
 import statsRoutes from './routes/statsRoutes.js';
+// 💡 CRITICAL CHANGE: Import the adminRoutes file to map all admin logic
 import adminRoutes from './routes/adminRoutes.js'; 
 
 import sgMail from '@sendgrid/mail'; 
 
-// Import your auth middleware
+// Import your auth middleware (kept for reference, but main auth usage moves to routers)
 import auth, { isSuperAdmin } from './middleware/auth.js'; 
 
 // --- Initial Setup ---
@@ -56,6 +57,7 @@ mongoose.connect(MONGO_URI)
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const sendCongratulationEmail = async (toEmail, userName) => {
+    // ... (Email logic remains unchanged, kept for context) ...
     const fromEmail = 'mcaigitalumni@gmail.com'; 
     const subject = '🎉 Congratulations! Your Alumni Account is Verified!';
     const html = `
@@ -149,7 +151,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// --- Socket.io Helper Functions (Unchanged) ---
+// --- Socket.io Helper Functions (Kept for completeness, no direct change needed) ---
 const getUpdatedEvents = async (userId) => {
     try {
         const registrations = await RegistrationPayment.find({ 
@@ -235,19 +237,15 @@ app.use('/api/stats', statsRoutes);
 // Admin Routes
 app.use('/api/admin', adminRoutes); 
 
----
-
-## 🟢 New Event Registration Routes (Fixing the 404)
-
 // =========================================================================
-// 🚀 FIX: EVENT REGISTRATION AND PAYMENT ROUTES 
-// These routes were missing, causing the 404 error on the frontend.
+// 🚀 FIX: NEW EVENT REGISTRATION ROUTES (Resolves 404 from frontend)
+// These routes handle the submission logic from EventRegistrationPage.js.
 // =========================================================================
 
 // POST /api/register-free-event - Handles event registration when amount is <= 0
 app.post('/api/register-free-event', async (req, res) => {
     try {
-        // Destructure necessary fields from the request body (add all fields collected by the frontend)
+        // Destructure necessary fields from the request body
         const { eventId, fullName, email, mobile, batch, purpose, guestCount, tShirtCount, tShirtSize, vegCount, nonVegCount } = req.body;
 
         // Basic validation
@@ -269,14 +267,14 @@ app.post('/api/register-free-event', async (req, res) => {
         // 1. Create a new RegistrationPayment entry with 'free' status
         const registration = new RegistrationPayment({
             eventId,
-            userId: null, // Link to actual user ID after auth/login or keep null for guest registration
+            userId: null, 
             fullName,
             email,
             mobile,
             batch,
             purpose: `FREE - ${purpose}`,
             amount: 0,
-            paymentStatus: 'free', // Use a new status for free registrations
+            paymentStatus: 'free', // Status for free registrations
             paymentDetails: {
                 orderId: 'FREE_REGISTRATION',
                 paymentId: 'N/A',
@@ -306,7 +304,7 @@ app.post('/api/register-free-event', async (req, res) => {
 // POST /api/create-order - Initiates a Razorpay order for paid events
 app.post('/api/create-order', async (req, res) => {
     try {
-        // Destructure necessary fields from the request body (add all fields collected by the frontend)
+        // Destructure necessary fields from the request body
         const { amount, eventId, fullName, email, mobile, batch, purpose, guestCount, tShirtCount, tShirtSize, vegCount, nonVegCount } = req.body;
         
         if (!amount || amount <= 0) {
@@ -329,7 +327,7 @@ app.post('/api/create-order', async (req, res) => {
         // 2. Create a pending RegistrationPayment entry
         const registration = new RegistrationPayment({
             eventId,
-            userId: null, // Link to actual user ID after auth/login
+            userId: null, 
             fullName,
             email,
             mobile,
@@ -367,7 +365,7 @@ app.post('/api/create-order', async (req, res) => {
 // 🛑 End of New Routes 🛑
 // =========================================================================
 
-// --- Admin User Management Routes (Placeholder remains unchanged) ---
+// --- Admin User Management Routes (Placeholder logic remains unchanged) ---
 app.get('/api/users/all', auth, isSuperAdmin, async (req, res, next) => {
     try {
         const alumni = await Alumni.find().select('fullName email role alumniCode isVerified');
