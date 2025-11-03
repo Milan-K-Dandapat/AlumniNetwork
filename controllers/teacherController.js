@@ -59,12 +59,12 @@ export const verifyTeacher = async (req, res) => {
                 from: process.env.EMAIL_USER || 'igitmcaalumni@gmail.com',
                 
                 // ✅ YOUR LOGIC: Using your requested emojis
-                subject: '🥳 ✅ Congratulations! Your Alumni Network Account is Verified!',
+                subject: '🎉Congratulations! Your Alumni Network Account is Verified!',
                 
                 // ✅ MY DESIGN: The full animated email template
-                html: `
+               html: `
 <style>
-    /* ... (all the CSS animation styles are here) ... */
+    /* ... (all the CSS animation styles) ... */
     @keyframes draw-circle {
         from { stroke-dashoffset: 315; }
         to { stroke-dashoffset: 0; }
@@ -102,10 +102,7 @@ export const verifyTeacher = async (req, res) => {
         />
         
         <h2 style="font-size: 24px; color: #0d133d; margin-bottom: 16px;">
-            Hello, ${
-                // This logic correctly gets the name from either controller
-                updatedAlumni ? updatedAlumni.fullName : updatedTeacher.fullName
-            }!
+            Hello, ${updatedTeacher.fullName}!
         </h2>
         
         <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
