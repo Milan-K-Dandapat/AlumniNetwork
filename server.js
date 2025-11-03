@@ -243,17 +243,18 @@ app.use('/api/admin', adminRoutes);
 // =========================================================================
 
 // POST /api/register-free-event - Handles event registration when amount is <= 0
+// POST /api/register-free-event - Handles event registration when amount is <= 0
 app.post('/api/register-free-event', async (req, res) => {
     try {
-        // Destructure necessary fields from the request body
-        const { eventId, fullName, email, mobile, batch, purpose, guestCount, tShirtCount, tShirtSize, vegCount, nonVegCount } = req.body;
+        // Destructure all fields from the request body
+        const { eventId, fullName, email, mobile, batch, purpose, guestCount, tShirtCount, tShirtSize, vegCount, nonVegCount, state, district, gender, designation } = req.body;
 
         // Basic validation
         if (!eventId || !email || !fullName || !mobile) {
-            return res.status(400).json({ message: 'Missing essential registration details: Event ID, Name, Email, or Mobile.' });
+            return res.status(400).json({ message: 'Missing essential registration details.' });
         }
 
-        // Check for duplicate registration (optional but recommended)
+        // Check for duplicate registration
         const existingRegistration = await RegistrationPayment.findOne({ 
             eventId: eventId, 
             email: email, 
@@ -267,24 +268,32 @@ app.post('/api/register-free-event', async (req, res) => {
         // 1. Create a new RegistrationPayment entry with 'free' status
         const registration = new RegistrationPayment({
             eventId,
-            userId: null, 
+            eventTitle: purpose, // Map purpose to eventTitle for schema
             fullName,
             email,
             mobile,
             batch,
-            purpose: `FREE - ${purpose}`,
-            amount: 0,
-            paymentStatus: 'free', // Status for free registrations
-            paymentDetails: {
-                orderId: 'FREE_REGISTRATION',
-                paymentId: 'N/A',
-                signature: 'N/A',
-            },
+            // Include other non-payment related user fields
+            state, 
+            district, 
+            gender, 
+            designation,
             guestCount, 
             tShirtCount, 
             tShirtSize, 
             vegCount, 
-            nonVegCount
+            nonVegCount,
+            donation: req.body.donation, // Ensure donation is saved
+            
+            amount: 0,
+            paymentStatus: 'free', 
+
+            // 🛑 FIX: The custom paymentDetails object is now correctly used here.
+            paymentDetails: {
+                orderId: 'FREE_REGISTRATION', 
+                paymentId: 'N/A',
+                signature: 'N/A',
+            },
         });
         
         await registration.save();
@@ -297,7 +306,14 @@ app.post('/api/register-free-event', async (req, res) => {
 
     } catch (error) {
         console.error('Error during free registration:', error);
-        res.status(500).json({ message: 'Server error during free registration.', error: error.message });
+        
+        // Check for Mongoose Validation Error (for required fields like district or batch)
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            return res.status(400).json({ message: `Validation Failed: ${messages.join(', ')}` });
+        }
+
+        res.status(500).json({ message: 'Server error during free registration. Check backend console for details.', error: error.message });
     }
 });
 
