@@ -4,42 +4,73 @@ import sgMail from '@sendgrid/mail';
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 /**
+ * Helper function to format the event date.
+ * Adjust timeZone as needed.
+ */
+const formatEventDate = (date) => {
+    if (!date) return 'Date TBD';
+    try {
+        const options = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric', 
+            hour: 'numeric', 
+            minute: 'numeric', 
+            timeZone: 'Asia/Kolkata' // IMPORTANT: Set to your target timezone
+        };
+        return new Date(date).toLocaleString('en-IN', options);
+    } catch (e) {
+        console.error('Error formatting date:', e);
+        return 'Date TBD';
+    }
+};
+
+/**
  * Sends a payment confirmation email.
  * @param {object} details - An object containing user and event details.
- * @param {string} details.email - The recipient's email address.
- * @param {string} details.fullName - The recipient's name.
- * @param {string} details.eventTitle - The title of the event.
- * @param {number} details.amount - The amount paid.
  */
 export const sendPaymentConfirmationEmail = async (details) => {
-    const { email, fullName, eventTitle, amount } = details;
+    const { 
+        email, 
+        fullName, 
+        eventTitle, 
+        amount, 
+        eventDate, 
+        eventLocation, 
+        paymentId,
+        pdfAttachment // 🚀 --- Accepts the PDF data --- 🚀
+    } = details;
+
+    // Format the date for display
+    const formattedDate = formatEventDate(eventDate);
 
     const msg = {
         to: email, // The user's email
         from: 'mcaigitalumni@gmail.com', // Your verified sender
         subject: `✔ Registration Confirmed for ${eventTitle}!`,
         
-        // Plain text version (unchanged, for email clients that don't load HTML)
-        text: `Hi ${fullName},\n\nThank you for registering for ${eventTitle}!\n\nYour payment of ₹${amount} was successful.\n\nWe look forward to seeing you there!\n\nBest,\nThe Alumni Network Team`,
+        // Plain text version
+        text: `Hi ${fullName},\n\nRegistration Confirmed!\n\nThank you for registering. Your payment of ₹${amount} was successful and your spot for ${eventTitle} is secured.\n\nRECEIPT:\n- Registrant: ${fullName}\n- Event: ${eventTitle}\n- Amount Paid: ₹${amount}\n- Payment ID: ${paymentId}\n\nEVENT INFO:\n- When: ${formattedDate}\n- Where: ${eventLocation}\n\nWe look forward to seeing you there!\nBest,\nThe Alumni Network Team`,
         
-        // 🚀 --- NEW ANIMATED HTML --- 🚀
+        // 🚀 --- NEW PAYTM-INSPIRED HTML TEMPLATE --- 🚀
         html: `
-<body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;">
+<body style="margin: 0; padding: 0; background-color: #f6f7f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
         <tr>
             <td style="padding: 20px 0;">
-                <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #e0e0e0;">
+                <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.05);">
                     
                     <tr>
-                        <td align="center" style="padding: 40px 0 20px 0;">
-                            <img src="https://i.imgur.com/L1qQ8WJ.gif" alt="Success" width="80" height="80" style="display: block;">
+                        <td align="center" style="padding: 20px 0 15px 0; border-bottom: 1px solid #eeeeee;">
+                            <img src="YOUR_LOGO_URL" alt="Alumni Network" width="180" style="display: block; -webkit-filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));">
                         </td>
                     </tr>
                     
                     <tr>
-                        <td style="padding: 0 40px 30px 40px; text-align: center;">
-                            <h1 style="color: #333333; font-size: 28px; font-weight: 600; margin: 0 0 10px 0;">Registration Confirmed!</h1>
-                            <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0;">
+                        <td style="padding: 40px 40px 20px 40px; text-align: left;">
+                            <h1 style="color: #111111; font-size: 26px; font-weight: 600; margin: 0 0 15px 0;">Registration Confirmed!</h1>
+                            <p style="color: #444444; font-size: 16px; line-height: 1.6; margin: 0;">
                                 Hi <strong>${fullName}</strong>,
                                 <br><br>
                                 Thank you for registering! Your payment was successful and your spot for <strong>${eventTitle}</strong> is secured.
@@ -48,40 +79,57 @@ export const sendPaymentConfirmationEmail = async (details) => {
                     </tr>
                     
                     <tr>
-                        <td style="padding: 0 40px 30px 40px;">
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9f9f9; border: 1px dashed #cccccc; border-radius: 8px; padding: 20px;">
+                        <td style="padding: 10px 40px 30px 40px;">
+                            <h2 style="font-size: 18px; color: #333; margin: 0 0 15px 0; border-bottom: 2px solid #3B82F6; padding-bottom: 5px;">Payment Receipt</h2>
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px;">
                                 <tr>
-                                    <td style="padding: 8px 0; color: #666666; font-size: 15px; font-weight: bold;">Registrant:</td>
-                                    <td align="right" style="padding: 8px 0; color: #333333; font-size: 15px;">${fullName}</td>
+                                    <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Registrant</td>
+                                    <td align="right" style="padding: 15px 20px; color: #111111; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${fullName}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 8px 0; color: #666666; font-size: 15px; font-weight: bold;">Event:</td>
-                                    <td align="right" style="padding: 8px 0; color: #333333; font-size: 15px;">${eventTitle}</td>
+                                    <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Event</td>
+                                    <td align="right" style="padding: 15px 20px; color: #111111; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${eventTitle}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding-top: 15px; border-top: 1px solid #e0e0e0;">
-                                        <strong style="color: #333333; font-size: 18px;">Total Paid:</strong>
+                                    <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Payment ID</td>
+                                    <td align="right" style="padding: 15px 20px; color: #111111; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${paymentId}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 20px; color: #333333; font-size: 17px; font-weight: 600;">Total Amount Paid</td>
+                                    <td align="right" style="padding: 20px; color: #28a745; font-size: 17px; font-weight: 600;">₹${amount}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td style="padding: 10px 25px 30px 25px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f6f7f9; border-radius: 8px; padding: 20px 15px;">
+                                <tr>
+                                    <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
+                                        <img src="https://i.imgur.com/gA0sYjU.png" alt="Calendar" width="40" height="40" style="margin-bottom: 10px;">
+                                        <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">When</h3>
+                                        <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">${formattedDate}</p>
                                     </td>
-                                    <td align="right" style="padding-top: 15px; border-top: 1px solid #e0e0e0;">
-                                        <strong style="color: #28a745; font-size: 18px;">₹${amount}</strong>
+                                    <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center; border-left: 1px solid #ddd; border-right: 1px solid #ddd;">
+                                        <img src="https://i.imgur.com/g0nLggC.png" alt="Location" width="40" height="40" style="margin-bottom: 10px;">
+                                        <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Where</h3>
+                                        <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">${eventLocation}</p>
+                                    </td>
+                                    <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
+                                        <img src="https://i.imgur.com/gbtPzVs.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
+                                        <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Have Questions?</h3>
+                                        <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">Contact us at<br><a href="mailto:mcaigitalumni@gmail.com" style="color: #3B82F6; text-decoration: none;">mcaigitalumni@gmail.com</a></p>
                                     </td>
                                 </tr>
                             </table>
                         </td>
                     </tr>
-
-                    <tr>
-                        <td align="center" style="padding: 0 40px 40px 40px;">
-                            <a href="https://your-website.com/events/upcoming" target="_blank" style="display: inline-block; background-color: #3B82F6; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 28px; border-radius: 8px; transition: background-color 0.3s;">
-                                View More Events
-                            </a>
-                        </td>
-                    </tr>
                     
                     <tr>
-                        <td align="center" style="padding: 20px 40px; background-color: #f1f1f1; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                        <td align="center" style="padding: 20px 40px; border-top: 1px solid #eeeeee;">
                             <p style="color: #888888; font-size: 12px; margin: 0;">
-                                We look forward to seeing you there!
+                                You are receiving this email because you registered for an event.
                                 <br><br>
                                 Best,
                                 <br>
@@ -95,11 +143,23 @@ export const sendPaymentConfirmationEmail = async (details) => {
     </table>
 </body>
         `,
+
+        // 🚀 --- THIS IS THE PDF ATTACHMENT --- 🚀
+        attachments: [
+            {
+                content: pdfAttachment, // The base64 string
+                filename: `receipt-${paymentId || 'event'}.pdf`,
+                type: 'application/pdf',
+                disposition: 'attachment',
+                contentId: 'receipt'
+            }
+        ]
+        // 🚀 --- END OF ATTACHMENT BLOCK --- 🚀
     };
 
     try {
         await sgMail.send(msg);
-        console.log(`Payment confirmation email sent to ${email}`);
+        console.log(`Payment confirmation email sent to ${email} (with PDF)`);
     } catch (error) {
         console.error('Error sending payment confirmation email:', error);
         if (error.response) {

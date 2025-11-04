@@ -7,9 +7,9 @@ import Event from '../models/Event.js';
 // 💡 SECURED: Import the auth and isAdmin middleware
 import auth, { isAdmin } from '../middleware/auth.js'; 
 
-// 🚀 --- ADD THIS IMPORT --- 🚀
-// (Assuming your emailService.js is in a 'utils' folder in the root)
+// 🚀 --- IMPORTS FOR EMAIL & PDF --- 🚀
 import { sendPaymentConfirmationEmail } from '../utils/emailService.js';
+import { generateReceiptPDF } from '../utils/pdfService.js'; // <-- NEW
 
 const router = express.Router();
 
@@ -203,19 +203,51 @@ router.post('/verify-payment', async (req, res) => {
             registrationToUpdate.razorpay_signature = razorpay_signature;
             await registrationToUpdate.save();
             
-            // 🚀 --- ADD THIS NEW BLOCK --- 🚀
-            // Send the confirmation email *after* the DB is saved
-            sendPaymentConfirmationEmail({
+            // 🚀 --- THIS IS THE UPDATED BLOCK --- 🚀
+            
+            // 1. Define fallbacks
+            let eventTitle = registrationToUpdate.eventTitle;
+            let eventDate = null;
+            let eventLocation = 'Venue TBD';
+            let paymentId = registrationToUpdate.razorpay_payment_id;
+
+            // 2. Try to find the full event details
+            if (registrationToUpdate.eventId) {
+                try {
+                    const event = await Event.findById(registrationToUpdate.eventId);
+                    if (event) {
+                        if (!eventTitle) eventTitle = event.title; // Fallback for title
+                        eventDate = event.date; // Get the date
+                        if (event.location) eventLocation = event.location; // Get location if it exists
+                    }
+                } catch (lookupError) {
+                    console.error('Failed to look up event details:', lookupError);
+                }
+            }
+
+            // 3. Create details object for PDF and Email
+            const emailDetails = {
                 email: registrationToUpdate.email,
                 fullName: registrationToUpdate.fullName,
-                eventTitle: registrationToUpdate.eventTitle, // Your model already has this!
-                amount: registrationToUpdate.amount
+                eventTitle: eventTitle || 'Your Event',
+                amount: registrationToUpdate.amount,
+                eventDate: eventDate,
+                eventLocation: eventLocation,
+                paymentId: paymentId
+            };
+
+            // 4. Generate the PDF
+            // We await this, as the email needs it
+            const pdfBase64 = await generateReceiptPDF(emailDetails);
+
+            // 5. Send the email with the PDF attached
+            sendPaymentConfirmationEmail({
+                ...emailDetails,
+                pdfAttachment: pdfBase64 // Pass the base64 string
             }).catch(emailError => {
-                // Log the error but don't stop the process
-                // The user's payment is VALID, we just failed to email.
                 console.error(`[Non-Blocking Error] Failed to send email for reg ${registrationId}:`, emailError);
             });
-            // 🚀 --- END OF NEW BLOCK --- 🚀
+            // 🚀 --- END OF UPDATED BLOCK --- 🚀
 
             const userId = registrationToUpdate.userId; 
             if (req.io && userId) {
@@ -226,7 +258,7 @@ router.post('/verify-payment', async (req, res) => {
             res.status(200).json({ 
                 success: true, 
                 message: 'Payment verified successfully.', 
-                registration: registrationToUpdate // Send back data needed for success page
+                registration: registrationToUpdate 
             });
         } else {
             // Signature Mismatch Path
@@ -239,11 +271,8 @@ router.post('/verify-payment', async (req, res) => {
     } catch (error) {
         console.error('CRITICAL ERROR in verify-payment route:', error);
         
-        // Ensure that if anything goes wrong (DB error, code crash), we send back JSON
-        // We check if registrationToUpdate exists and set status to failed if possible
         if (registrationToUpdate && registrationToUpdate.paymentStatus !== 'success') {
             registrationToUpdate.paymentStatus = 'failed';
-            // We use a separate try/catch here to prevent a crash inside the error handler
             try {
                 await registrationToUpdate.save(); 
             } catch (saveError) {
@@ -251,7 +280,6 @@ router.post('/verify-payment', async (req, res) => {
             }
         }
         
-        // Send a definitive JSON 500 response
         res.status(500).json({ success: false, message: 'Server error during final payment verification.' });
     }
 });
