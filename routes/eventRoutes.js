@@ -7,6 +7,10 @@ import Event from '../models/Event.js';
 // 💡 SECURED: Import the auth and isAdmin middleware
 import auth, { isAdmin } from '../middleware/auth.js'; 
 
+// 🚀 --- ADD THIS IMPORT --- 🚀
+// (Assuming your emailService.js is in a 'utils' folder in the root)
+import { sendPaymentConfirmationEmail } from '../utils/emailService.js';
+
 const router = express.Router();
 
 // --- Razorpay Setup (Unchanged) ---
@@ -199,6 +203,20 @@ router.post('/verify-payment', async (req, res) => {
             registrationToUpdate.razorpay_signature = razorpay_signature;
             await registrationToUpdate.save();
             
+            // 🚀 --- ADD THIS NEW BLOCK --- 🚀
+            // Send the confirmation email *after* the DB is saved
+            sendPaymentConfirmationEmail({
+                email: registrationToUpdate.email,
+                fullName: registrationToUpdate.fullName,
+                eventTitle: registrationToUpdate.eventTitle, // Your model already has this!
+                amount: registrationToUpdate.amount
+            }).catch(emailError => {
+                // Log the error but don't stop the process
+                // The user's payment is VALID, we just failed to email.
+                console.error(`[Non-Blocking Error] Failed to send email for reg ${registrationId}:`, emailError);
+            });
+            // 🚀 --- END OF NEW BLOCK --- 🚀
+
             const userId = registrationToUpdate.userId; 
             if (req.io && userId) {
                 await fetchAndEmitUpdatedEvents(req.io, userId);
