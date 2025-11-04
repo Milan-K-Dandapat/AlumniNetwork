@@ -172,21 +172,28 @@ router.post('/create-order', async (req, res) => {
  * @desc    Verifies the payment signature from Razorpay after payment
  */
 router.post('/verify-payment', async (req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, registrationId } = req.body;
+    let registrationToUpdate;
+
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, registrationId } = req.body;
-        const registrationToUpdate = await RegistrationPayment.findById(registrationId);
+        // 1. Find the registration record
+        registrationToUpdate = await RegistrationPayment.findById(registrationId);
         
         if (!registrationToUpdate) {
+            // Return 404 with JSON if record not found
             return res.status(404).json({ success: false, message: 'Registration record not found.' });
         }
         
+        // 2. Compute expected signature
         const body = razorpay_order_id + "|" + razorpay_payment_id;
         const expectedSignature = crypto
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
             .update(body.toString())
             .digest('hex');
 
+        // 3. Compare signatures
         if (expectedSignature === razorpay_signature) {
+            // Success Path
             registrationToUpdate.paymentStatus = 'success';
             registrationToUpdate.razorpay_payment_id = razorpay_payment_id;
             registrationToUpdate.razorpay_signature = razorpay_signature;
@@ -196,15 +203,38 @@ router.post('/verify-payment', async (req, res) => {
             if (req.io && userId) {
                 await fetchAndEmitUpdatedEvents(req.io, userId);
             }
-            res.status(200).json({ success: true, message: 'Payment verified successfully.' });
+            
+            // Send Success JSON response
+            res.status(200).json({ 
+                success: true, 
+                message: 'Payment verified successfully.', 
+                registration: registrationToUpdate // Send back data needed for success page
+            });
         } else {
+            // Signature Mismatch Path
             registrationToUpdate.paymentStatus = 'failed';
             await registrationToUpdate.save();
-            res.status(400).json({ success: false, message: 'Payment verification failed.' });
+            
+            // Send Failure JSON response
+            res.status(400).json({ success: false, message: 'Payment verification failed: Signature mismatch.' });
         }
     } catch (error) {
-        console.error('Error verifying payment:', error);
-        res.status(500).json({ message: 'Server error during payment verification.' });
+        console.error('CRITICAL ERROR in verify-payment route:', error);
+        
+        // Ensure that if anything goes wrong (DB error, code crash), we send back JSON
+        // We check if registrationToUpdate exists and set status to failed if possible
+        if (registrationToUpdate && registrationToUpdate.paymentStatus !== 'success') {
+            registrationToUpdate.paymentStatus = 'failed';
+            // We use a separate try/catch here to prevent a crash inside the error handler
+            try {
+                await registrationToUpdate.save(); 
+            } catch (saveError) {
+                console.error('Failed to update status to failed:', saveError);
+            }
+        }
+        
+        // Send a definitive JSON 500 response
+        res.status(500).json({ success: false, message: 'Server error during final payment verification.' });
     }
 });
 
