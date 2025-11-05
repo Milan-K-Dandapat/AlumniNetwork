@@ -38,9 +38,10 @@ export const generateReceiptPDF = (details) => {
             paymentId
         } = details;
 
+      const receiptNumber = paymentId ? `REG-${paymentId.slice(-10).toUpperCase()}` : `REG-N/A`;
         const formattedEventDate = formatPdfDate(eventDate, true); // Include time for event date
         const issueDate = formatPdfDate(new Date());
-        const receiptNumber = paymentId ? `REG-${paymentId.slice(-10).toUpperCase()}` : `REG-N/A`;
+        
 
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const buffers = [];
@@ -354,10 +355,10 @@ export const generateFreeReceiptPDF = (details) => {
             receiptId // Use the Registration ID
         } = details;
 
+        const receiptNumber = `REG-FREE-${receiptId.slice(-10).toUpperCase()}`;
         const formattedEventDate = formatPdfDate(eventDate, true); // Include time for event date
         const issueDate = formatPdfDate(new Date());
-        const receiptNumber = `REG-FREE-${receiptId.slice(-10).toUpperCase()}`;
-
+        
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const buffers = [];
 
