@@ -22,7 +22,6 @@ const formatPdfDate = (date, includeTime = false) => {
     }
 };
 
-// 🚀 --- UPDATED EVENT RECEIPT FUNCTION --- 🚀
 /**
  * Generates a professional PDF event receipt.
  * @param {object} details - The registration and event details.
@@ -62,11 +61,13 @@ export const generateReceiptPDF = (details) => {
 
         // --- 1. Header (Logo & Company Info) ---
         doc.fontSize(24).font('Helvetica-Bold').fillColor(primaryColor).text('ALUMNI NETWORK', 50, 50);
+
         doc.font('Helvetica').fontSize(10).fillColor(textColor);
         doc.text('IGIT MCA Alumni Network', 400, 50, { align: 'right' });
         doc.text('IGIT Sarang', 400, 65, { align: 'right' });
         doc.text('Dhenkanal, Odisha, 759146', 400, 80, { align: 'right' });
         doc.text('mcaigitalumni@gmail.com', 400, 95, { align: 'right' });
+        
         doc.moveDown(5);
 
         // --- 2. Title & Receipt Details ---
@@ -173,7 +174,7 @@ export const generateReceiptPDF = (details) => {
     });
 };
 
-// --- PROFESSIONAL DONATION PDF FUNCTION (Unchanged) ---
+// 🚀 --- UPDATED DONATION PDF FUNCTION --- 🚀
 
 /**
  * Generates a professional PDF donation receipt.
@@ -211,52 +212,58 @@ export const generateDonationPDF = (details) => {
         const successColor = '#10B981';
 
         // --- 1. Header (Logo & Company Info) ---
-        
-        // ⚠️ IMPORTANT: Replace this with your logo's path on the server
-        // Example: doc.image('public/images/logo.png', 50, 45, { fit: [150, 50] });
-        // If you don't have an image path, you can use text:
         doc.fontSize(28)
            .font('Helvetica-Bold')
            .fillColor(primaryColor)
            .text('ALUMNI NETWORK', 50, 50);
-        doc.fontSize(10)
-            .font('Helvetica')
-            .fillColor(mutedTextColor)
-            .text('mcaigitalumni@gmail.com', 50, 80);
 
-        // Receipt Title
-        doc.fontSize(28)
-           .font('Helvetica-Bold')
-           .fillColor(textColor)
-           .text('DONATION RECEIPT', 250, 50, { align: 'right' });
+        // Company / Organization Info
+        doc.font('Helvetica').fontSize(10).fillColor(textColor);
+        doc.text('IGIT MCA Alumni Network', 400, 50, { align: 'right' });
+        doc.text('IGIT Sarang', 400, 65, { align: 'right' });
+        doc.text('Dhenkanal, Odisha, 759146', 400, 80, { align: 'right' });
+        doc.text('mcaigitalumni@gmail.com', 400, 95, { align: 'right' });
+
+        doc.moveDown(5);
+
+        // --- 2. Title & Receipt Details ---
+        doc.fontSize(22).font('Helvetica-Bold').fillColor(textColor).text('DONATION RECEIPT', 50, doc.y);
+        doc.rect(50, doc.y + 5, doc.page.width - 100, 2).fill(primaryColor).stroke(primaryColor);
+        doc.moveDown(1);
+
+        // --- 🚀 FIX: DYNAMIC Y-POSITIONING ---
+        const infoTop = doc.y;
         
-        doc.fontSize(11)
-           .font('Helvetica')
-           .fillColor(mutedTextColor)
-           .text(`Receipt #: ${receiptNumber}`, 250, 80, { align: 'right' });
+        // Bill To (Left Aligned)
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('DONOR INFORMATION', 50, infoTop);
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor).text(fullName, 50, infoTop + 15);
+        doc.font('Helvetica').fillColor(mutedTextColor).text(email, 50, infoTop + 30);
+        const leftColBottom = doc.y; // Get bottom of left column
+
+        // Receipt Details (Right Aligned - Drawn sequentially)
+        let rightColY = infoTop;
+        const rightColLabelX = 350;
+        const rightColValueX = 450;
+        const rightColWidth = 95; 
         
-        doc.fontSize(11)
-           .font('Helvetica')
-           .fillColor(mutedTextColor)
-           .text(`Date Issued: ${issueDate}`, 250, 95, { align: 'right' });
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('RECEIPT #:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(receiptNumber, rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        rightColY = doc.y + 5;
 
-        doc.moveDown(4); // Add space after header
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('PAYMENT ID:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(paymentId || 'N/A', rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        rightColY = doc.y + 5;
 
-        // --- 2. Donor Information ---
-        doc.fillColor(mutedTextColor)
-           .fontSize(10)
-           .font('Helvetica-Bold')
-           .text('DONOR INFORMATION', 50, doc.y);
-           
-        doc.fillColor(textColor)
-           .fontSize(12)
-           .font('Helvetica-Bold')
-           .text(fullName, 50, doc.y + 5);
-           
-        doc.fillColor(mutedTextColor)
-           .font('Helvetica')
-           .text(email, 50, doc.y + 5);
-        doc.moveDown(3);
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('DATE ISSUED:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(issueDate, rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        rightColY = doc.y + 5;
+
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('PAYMENT STATUS:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica-Bold').fillColor(successColor).text('PAID', rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        
+        // Set doc.y to the bottom of whichever column is tallest
+        doc.y = Math.max(leftColBottom, doc.y) + 20;
+        // --- 🚀 END FIX ---
 
         // --- 3. Thank You Message ---
         doc.fillColor(textColor)
@@ -273,7 +280,6 @@ export const generateDonationPDF = (details) => {
         // --- 4. Itemized Table ---
         const tableTop = doc.y;
         const itemCol = 50;
-        const totalCol = doc.page.width - 150;
         const amountCol = doc.page.width - 100;
 
         // Table Header
@@ -340,7 +346,7 @@ export const generateDonationPDF = (details) => {
     });
 };
 
-// 🚀 --- UPDATED FREE EVENT PDF FUNCTION --- 🚀
+// --- UPDATED FREE EVENT PDF FUNCTION ---
 
 /**
  * Generates a professional PDF event confirmation for a FREE event.
@@ -407,7 +413,7 @@ export const generateFreeReceiptPDF = (details) => {
         let rightColY = infoTop;
         const rightColLabelX = 350;
         const rightColValueX = 450;
-        const rightColWidth = 95; // (PageWidth - Margin - X) = 595 - 50 - 450 = 95
+        const rightColWidth = 95; 
 
         doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('CONFIRMATION #:', rightColLabelX, rightColY, { align: 'left' });
         doc.font('Helvetica').fillColor(textColor).text(receiptNumber, rightColValueX, rightColY, { align: 'right', width: rightColWidth });
