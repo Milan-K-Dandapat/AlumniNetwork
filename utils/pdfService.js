@@ -22,12 +22,12 @@ const formatPdfDate = (date, includeTime = false) => {
     }
 };
 
+// 🚀 --- UPDATED EVENT RECEIPT FUNCTION --- 🚀
 /**
- * Generates a PDF receipt and returns it as a base64 string.
+ * Generates a professional PDF event receipt.
  * @param {object} details - The registration and event details.
  */
 export const generateReceiptPDF = (details) => {
-    // This is your existing function for Event Receipts (Unchanged)
     return new Promise((resolve, reject) => {
         const {
             fullName,
@@ -40,133 +40,7 @@ export const generateReceiptPDF = (details) => {
 
         const formattedEventDate = formatPdfDate(eventDate, true); // Include time for event date
         const issueDate = formatPdfDate(new Date());
-
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
-        const buffers = [];
-
-        doc.on('data', buffers.push.bind(buffers));
-        doc.on('end', () => {
-            const pdfData = Buffer.concat(buffers).toString('base64');
-            resolve(pdfData);
-        });
-        doc.on('error', reject);
-
-        // --- Brand Colors ---
-        const primaryColor = '#3B82F6'; // Alumni Network blue
-        const accentColor = '#EBF4FF'; // Light blue for subtle backgrounds
-        const textColor = '#333333';
-        const mutedTextColor = '#666666';
-        const successColor = '#28a745'; // Green for total amount
-
-        // --- Header ---
-        doc.rect(0, 0, doc.page.width, 80)
-           .fill(primaryColor);
-           
-        // doc.image('path/to/your/logo.png', 50, 20, { width: 150 });
-        doc.fontSize(24)
-           .fillColor('#FFFFFF')
-           .text('Alumni Network', 50, 30, { align: 'left' });
-
-        doc.fontSize(10)
-           .fillColor('#FFFFFF')
-           .text('OFFICIAL PAYMENT RECEIPT', doc.page.width - 50, 35, { align: 'right' });
-        doc.moveDown();
-
-        // --- Main Content Area ---
-        doc.fillColor(textColor)
-           .font('Helvetica-Bold')
-           .fontSize(28)
-           .text('REGISTRATION CONFIRMED', 50, 120); // Starting below the header
-        doc.moveDown(0.5);
-
-        doc.font('Helvetica')
-           .fontSize(12)
-           .fillColor(mutedTextColor)
-           .text(`Thank you for your payment, ${fullName}! Your registration is complete.`, 50, doc.y);
-        doc.moveDown(2);
-
-        // --- Receipt Details Section ---
-        const startY = doc.y;
-        doc.rect(50, startY - 10, doc.page.width - 100, 1) // Separator line
-           .fill(accentColor);
-        doc.moveDown(0.5);
-
-        doc.fontSize(14).font('Helvetica-Bold').fillColor(textColor);
-        doc.text('Payment Details:', 50, doc.y);
-        doc.moveDown(0.5);
-
-        doc.font('Helvetica').fontSize(12).fillColor(mutedTextColor);
-        doc.text(`Transaction ID: `, 50, doc.y, { continued: true }).fillColor(textColor).text(paymentId || 'N/A', { align: 'right' });
-        doc.fillColor(mutedTextColor).text(`Date Issued: `, 50, doc.y, { continued: true }).fillColor(textColor).text(issueDate, { align: 'right' });
-        doc.fillColor(mutedTextColor).text(`Billed To: `, 50, doc.y, { continued: true }).fillColor(textColor).text(fullName, { align: 'right' });
-        doc.fillColor(mutedTextColor).text(`Email: `, 50, doc.y, { continued: true }).fillColor(textColor).text(email, { align: 'right' });
-        doc.moveDown(2);
-
-        // --- Event Details Section (Like a Card) ---
-        const cardX = 50;
-        const cardY = doc.y;
-        const cardWidth = doc.page.width - 100;
-        const cardHeight = 100; // Adjust as needed
-
-        doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 10)
-           .fill(accentColor); // Light blue background for the card
-
-        const textIndent = 20;
-        doc.fillColor(textColor)
-           .font('Helvetica-Bold')
-           .fontSize(16)
-           .text('Event Information', cardX + textIndent, cardY + 15);
-        
-        doc.font('Helvetica').fontSize(12).fillColor(mutedTextColor);
-        doc.text(`Event Title: `, cardX + textIndent, cardY + 45, { continued: true })
-           .fillColor(textColor).font('Helvetica-Bold').text(eventTitle || 'N/A', { align: 'right' });
-        
-        doc.fillColor(mutedTextColor).font('Helvetica').text(`Event Date: `, cardX + textIndent, cardY + 65, { continued: true })
-           .fillColor(textColor).font('Helvetica-Bold').text(formattedEventDate, { align: 'right' });
-        
-        doc.moveDown(2); 
-
-        // --- Total Amount ---
-        doc.rect(50, doc.y - 10, doc.page.width - 100, 1) 
-           .fill(accentColor);
-        doc.moveDown(1);
-
-        doc.fontSize(20).font('Helvetica-Bold').fillColor(textColor);
-        doc.text('Total Amount Paid', 50, doc.y, { continued: true });
-        doc.fillColor(successColor).text(`₹${amount}`, 0, doc.y, { align: 'right' });
-        doc.moveDown(3);
-
-        // --- Footer ---
-        doc.rect(0, doc.page.height - 60, doc.page.width, 60)
-           .fill(primaryColor);
-        doc.fontSize(10)
-           .fillColor('#FFFFFF')
-           .text('This is an auto-generated receipt. Thank you for being a part of the Alumni Network!', 
-                 50, doc.page.height - 40, { align: 'center', width: doc.page.width - 100 });
-        doc.text('Contact us: mcaigitalumni@gmail.com', 
-                 50, doc.page.height - 25, { align: 'center', width: doc.page.width - 100 });
-
-        doc.end();
-    });
-};
-
-// 🚀 --- NEW & IMPROVED PROFESSIONAL INVOICE-STYLE PDF --- 🚀
-
-/**
- * Generates a professional PDF donation receipt.
- * @param {object} details - The donation and donor details.
- */
-export const generateDonationPDF = (details) => {
-    return new Promise((resolve, reject) => {
-        const {
-            fullName,
-            email,
-            amount,
-            paymentId
-        } = details;
-
-        const issueDate = formatPdfDate(new Date());
-        const receiptNumber = paymentId ? `DON-${paymentId.slice(-10).toUpperCase()}` : `DON-N/A`;
+        const receiptNumber = paymentId ? `REG-${paymentId.slice(-10).toUpperCase()}` : `REG-N/A`;
 
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const buffers = [];
@@ -184,6 +58,7 @@ export const generateDonationPDF = (details) => {
         const textColor = '#1F2937'; // Darker text
         const mutedTextColor = '#6B7280';
         const borderColor = '#E5E7EB';
+        const successColor = '#10B981';
 
         // --- 1. Header (Logo & Company Info) ---
         // ⚠️ IMPORTANT: Replace this with your logo's path on the server
@@ -201,7 +76,7 @@ export const generateDonationPDF = (details) => {
         doc.moveDown(5);
 
         // --- 2. Title & Receipt Details ---
-        doc.fontSize(22).font('Helvetica-Bold').fillColor(textColor).text('DONATION RECEIPT', 50, doc.y);
+        doc.fontSize(22).font('Helvetica-Bold').fillColor(textColor).text('REGISTRATION RECEIPT', 50, doc.y);
         doc.rect(50, doc.y + 5, doc.page.width - 100, 2).fill(primaryColor).stroke(primaryColor);
         doc.moveDown(1);
 
@@ -217,10 +92,10 @@ export const generateDonationPDF = (details) => {
         doc.font('Helvetica').fillColor(textColor).text(issueDate, 450, infoTop + 30, { align: 'right' });
 
         doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('PAYMENT STATUS:', 350, infoTop + 45, { align: 'left' });
-        doc.font('Helvetica-Bold').fillColor('#28a745').text('PAID', 450, infoTop + 45, { align: 'right' });
+        doc.font('Helvetica-Bold').fillColor(successColor).text('PAID', 450, infoTop + 45, { align: 'right' });
 
         // Bill To (Left Aligned)
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('BILL TO', 50, infoTop);
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('REGISTRANT', 50, infoTop);
         doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor).text(fullName, 50, infoTop + 15);
         doc.font('Helvetica').fillColor(mutedTextColor).text(email, 50, infoTop + 30);
         
@@ -240,12 +115,15 @@ export const generateDonationPDF = (details) => {
 
         // Table Body
         const rowTop = tableTop + 35;
-        doc.fillColor(textColor).font('Helvetica').fontSize(11);
-        doc.text('Contribution to Alumni Network Fund', itemCol + 10, rowTop, { width: 300 });
-        doc.font('Helvetica-Bold').text(`₹${amount}`, amountCol - 10, rowTop, { width: 50, align: 'right' });
+        doc.fillColor(textColor).font('Helvetica-Bold').fontSize(11);
+        doc.text(`Event Registration: ${eventTitle}`, itemCol + 10, rowTop, { width: 300 });
+        
+        doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor).text(`Event Date: ${formattedEventDate}`, itemCol + 10, rowTop + 15, { width: 300 });
+
+        doc.font('Helvetica-Bold').fontSize(11).text(`₹${amount}`, amountCol - 10, rowTop, { width: 50, align: 'right' });
         
         // --- 4. Total Section ---
-        const totalTopPos = rowTop + 40;
+        const totalTopPos = rowTop + 50; // Adjusted for the extra line
         doc.rect(300, totalTopPos, doc.page.width - 350, 1).fill(borderColor).stroke(borderColor);
         doc.moveDown(0.5);
 
@@ -271,7 +149,174 @@ export const generateDonationPDF = (details) => {
         doc.moveDown(0.5);
         
         doc.font('Helvetica-Oblique').fontSize(10).fillColor(mutedTextColor);
-        doc.text('This is an official receipt. Your generous contribution is greatly appreciated.', 50, doc.y, {
+        doc.text('This is an official receipt. We look forward to seeing you at the event.', 50, doc.y, {
+            align: 'center',
+            width: doc.page.width - 100
+        });
+
+        // Finalize the PDF
+        doc.end();
+    });
+};
+
+// --- PROFESSIONAL DONATION PDF FUNCTION (Unchanged) ---
+
+/**
+ * Generates a professional PDF donation receipt.
+ * @param {object} details - The donation and donor details.
+ */
+export const generateDonationPDF = (details) => {
+    return new Promise((resolve, reject) => {
+        const {
+            fullName,
+            email,
+            amount,
+            paymentId
+        } = details;
+
+        const issueDate = formatPdfDate(new Date());
+        // Create a unique, shorter receipt number
+        const receiptNumber = paymentId ? `DON-${paymentId.slice(-10).toUpperCase()}` : `DON-N/A`;
+
+        const doc = new PDFDocument({ size: 'A4', margin: 50 });
+        const buffers = [];
+
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+            const pdfData = Buffer.concat(buffers).toString('base64');
+            resolve(pdfData);
+        });
+        doc.on('error', reject);
+
+        // --- Brand Colors ---
+        const primaryColor = '#3B82F6';
+        const tableHeaderColor = '#F3F4F6'; // A light gray for the table header
+        const textColor = '#1F2937';
+        const mutedTextColor = '#6B7280';
+        const borderColor = '#E5E7EB';
+        const successColor = '#10B981';
+
+        // --- 1. Header (Logo & Company Info) ---
+        
+        // ⚠️ IMPORTANT: Replace this with your logo's path on the server
+        // Example: doc.image('public/images/logo.png', 50, 45, { fit: [150, 50] });
+        // If you don't have an image path, you can use text:
+        doc.fontSize(28)
+           .font('Helvetica-Bold')
+           .fillColor(primaryColor)
+           .text('ALUMNI NETWORK', 50, 50);
+        doc.fontSize(10)
+            .font('Helvetica')
+            .fillColor(mutedTextColor)
+            .text('mcaigitalumni@gmail.com', 50, 80);
+
+        // Receipt Title
+        doc.fontSize(28)
+           .font('Helvetica-Bold')
+           .fillColor(textColor)
+           .text('DONATION RECEIPT', 250, 50, { align: 'right' });
+        
+        doc.fontSize(11)
+           .font('Helvetica')
+           .fillColor(mutedTextColor)
+           .text(`Receipt #: ${receiptNumber}`, 250, 80, { align: 'right' });
+        
+        doc.fontSize(11)
+           .font('Helvetica')
+           .fillColor(mutedTextColor)
+           .text(`Date Issued: ${issueDate}`, 250, 95, { align: 'right' });
+
+        doc.moveDown(4); // Add space after header
+
+        // --- 2. Donor Information ---
+        doc.fillColor(mutedTextColor)
+           .fontSize(10)
+           .font('Helvetica-Bold')
+           .text('DONOR INFORMATION', 50, doc.y);
+           
+        doc.fillColor(textColor)
+           .fontSize(12)
+           .font('Helvetica-Bold')
+           .text(fullName, 50, doc.y + 5);
+           
+        doc.fillColor(mutedTextColor)
+           .font('Helvetica')
+           .text(email, 50, doc.y + 5);
+        doc.moveDown(3);
+
+        // --- 3. Thank You Message ---
+        doc.fillColor(textColor)
+           .font('Helvetica')
+           .fontSize(12)
+           .text(`Dear ${fullName},`, 50, doc.y);
+        doc.moveDown(0.5);
+        doc.text('We are incredibly grateful for your generous contribution. Your support is invaluable in helping us fund scholarships, organize events, and strengthen our alumni community. Please accept this as your official receipt.', {
+            width: doc.page.width - 100,
+            align: 'left'
+        });
+        doc.moveDown(3);
+
+        // --- 4. Itemized Table ---
+        const tableTop = doc.y;
+        const itemCol = 50;
+        const totalCol = doc.page.width - 150;
+        const amountCol = doc.page.width - 100;
+
+        // Table Header
+        doc.rect(50, tableTop, doc.page.width - 100, 25)
+           .fill(tableHeaderColor);
+           
+        doc.fillColor(mutedTextColor)
+           .font('Helvetica-Bold')
+           .fontSize(10)
+           .text('DESCRIPTION', itemCol + 10, tableTop + 8);
+           
+        doc.text('AMOUNT', amountCol - 10, tableTop + 8, { width: 50, align: 'right' });
+
+        // Table Body
+        const rowTop = tableTop + 35;
+        doc.fillColor(textColor)
+           .font('Helvetica')
+           .fontSize(11)
+           .text('Contribution to Alumni Network Fund', itemCol + 10, rowTop, { width: 300 });
+           
+        doc.font('Helvetica-Bold').text(`₹${amount}`, amountCol - 10, rowTop, { width: 50, align: 'right' });
+        
+        // Bottom border for the row
+        doc.rect(50, rowTop + 20, doc.page.width - 100, 1)
+           .fill(borderColor)
+           .stroke(borderColor);
+           
+        doc.moveDown(3);
+
+        // --- 5. Total ---
+        const totalTopPos = rowTop + 40;
+        doc.rect(300, totalTopPos, doc.page.width - 350, 1).fill(borderColor).stroke(borderColor);
+        doc.moveDown(0.5);
+
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor);
+        doc.text('Subtotal:', 300, doc.y, { align: 'left' });
+        doc.text(`₹${amount}`, 440, doc.y - 12, { align: 'right' }); // -12 to align with "Subtotal"
+        doc.moveDown(0.5);
+        
+        doc.rect(300, doc.y, doc.page.width - 350, 2).fill(primaryColor).stroke(primaryColor);
+        doc.moveDown(0.5);
+
+        doc.font('Helvetica-Bold').fontSize(14);
+        doc.text('Total Donated:', 300, doc.y, { align: 'left' });
+        doc.text(`₹${amount}`, 440, doc.y - 14, { align: 'right' }); // -14 to align with "TOTAL PAID"
+
+        // --- 6. Footer ---
+        const pageBottom = doc.page.height - 100;
+        doc.y = pageBottom;
+        doc.rect(50, doc.y, doc.page.width - 100, 1).fill(borderColor).stroke(borderColor);
+        doc.moveDown(1);
+        
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor).text('Thank You!', 50, doc.y, { align: 'center' });
+        doc.moveDown(0.5);
+        
+        doc.font('Helvetica-Oblique').fontSize(10).fillColor(mutedTextColor);
+        doc.text('This is an official receipt. Thank you for your generous contribution.', 50, doc.y, {
             align: 'center',
             width: doc.page.width - 100
         });
