@@ -107,17 +107,17 @@ export const sendPaymentConfirmationEmail = async (details) => {
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f6f7f9; border-radius: 8px; padding: 20px 15px;">
                                 <tr>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
-                                        <img src="https://i.imgur.com/gA0sYjU.png" alt="Calendar" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762328020/pngwing.com_9_xjdggk.png" alt="Calendar" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">When</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">${formattedDate}</p>
                                     </td>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center; border-left: 1px solid #ddd; border-right: 1px solid #ddd;">
-                                        <img src="https://i.imgur.com/g0nLggC.png" alt="Location" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762328170/pngwing.com_10_jzni2a.png" alt="Location" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Where</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">${eventLocation}</p>
                                     </td>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
-                                        <img src="https://i.imgur.com/gbtPzVs.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762328359/pngwing.com_12_fgmbgm.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Have Questions?</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">Contact us at<br><a href="mailto:mcaigitalumni@gmail.com" style="color: #3B82F6; text-decoration: none;">mcaigitalumni@gmail.com</a></p>
                                     </td>
