@@ -22,12 +22,12 @@ const formatPdfDate = (date, includeTime = false) => {
     }
 };
 
+// 🚀 --- UPDATED EVENT RECEIPT FUNCTION --- 🚀
 /**
  * Generates a professional PDF event receipt.
  * @param {object} details - The registration and event details.
  */
 export const generateReceiptPDF = (details) => {
-    // This is your existing function for Event Receipts (Unchanged)
     return new Promise((resolve, reject) => {
         const {
             fullName,
@@ -38,10 +38,9 @@ export const generateReceiptPDF = (details) => {
             paymentId
         } = details;
 
-      const receiptNumber = paymentId ? `REG-${paymentId.slice(-10).toUpperCase()}` : `REG-N/A`;
         const formattedEventDate = formatPdfDate(eventDate, true); // Include time for event date
         const issueDate = formatPdfDate(new Date());
-        
+        const receiptNumber = paymentId ? `REG-${paymentId.slice(-10).toUpperCase()}` : `REG-N/A`;
 
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const buffers = [];
@@ -62,18 +61,12 @@ export const generateReceiptPDF = (details) => {
         const successColor = '#10B981';
 
         // --- 1. Header (Logo & Company Info) ---
-        // ⚠️ IMPORTANT: Replace this with your logo's path on the server
-        // Example: doc.image('public/images/logo.png', 50, 45, { fit: [150, 50] });
-        // If no logo, use text:
         doc.fontSize(24).font('Helvetica-Bold').fillColor(primaryColor).text('ALUMNI NETWORK', 50, 50);
-
-        // Company / Organization Info
         doc.font('Helvetica').fontSize(10).fillColor(textColor);
         doc.text('IGIT MCA Alumni Network', 400, 50, { align: 'right' });
         doc.text('IGIT Sarang', 400, 65, { align: 'right' });
         doc.text('Dhenkanal, Odisha, 759146', 400, 80, { align: 'right' });
         doc.text('mcaigitalumni@gmail.com', 400, 95, { align: 'right' });
-        
         doc.moveDown(5);
 
         // --- 2. Title & Receipt Details ---
@@ -81,31 +74,43 @@ export const generateReceiptPDF = (details) => {
         doc.rect(50, doc.y + 5, doc.page.width - 100, 2).fill(primaryColor).stroke(primaryColor);
         doc.moveDown(1);
 
-        // Receipt Details (Right Aligned)
+        // --- 🚀 FIX: DYNAMIC Y-POSITIONING ---
         const infoTop = doc.y;
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('RECEIPT #:', 350, infoTop, { align: 'left' });
-        doc.font('Helvetica').fillColor(textColor).text(receiptNumber, 450, infoTop, { align: 'right' });
-
-        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('PAYMENT ID:', 350, infoTop + 15, { align: 'left' });
-        doc.font('Helvetica').fillColor(textColor).text(paymentId || 'N/A', 450, infoTop + 15, { align: 'right' });
-
-        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('DATE ISSUED:', 350, infoTop + 30, { align: 'left' });
-        doc.font('Helvetica').fillColor(textColor).text(issueDate, 450, infoTop + 30, { align: 'right' });
-
-        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('PAYMENT STATUS:', 350, infoTop + 45, { align: 'left' });
-        doc.font('Helvetica-Bold').fillColor(successColor).text('PAID', 450, infoTop + 45, { align: 'right' });
-
+        
         // Bill To (Left Aligned)
         doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('REGISTRANT', 50, infoTop);
         doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor).text(fullName, 50, infoTop + 15);
         doc.font('Helvetica').fillColor(mutedTextColor).text(email, 50, infoTop + 30);
+        const leftColBottom = doc.y; // Get bottom of left column
+
+        // Receipt Details (Right Aligned - Drawn sequentially)
+        let rightColY = infoTop;
+        const rightColLabelX = 350;
+        const rightColValueX = 450;
+        const rightColWidth = 95; // (PageWidth - Margin - X) = 595 - 50 - 450 = 95
         
-        doc.y = infoTop + 70; // Set Y position below both blocks
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('RECEIPT #:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(receiptNumber, rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        rightColY = doc.y + 5; // Move Y *after* drawing
+
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('PAYMENT ID:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(paymentId || 'N/A', rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        rightColY = doc.y + 5;
+
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('DATE ISSUED:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(issueDate, rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        rightColY = doc.y + 5;
+
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('PAYMENT STATUS:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica-Bold').fillColor(successColor).text('PAID', rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        
+        // Set doc.y to the bottom of whichever column is tallest
+        doc.y = Math.max(leftColBottom, doc.y) + 20;
+        // --- 🚀 END FIX ---
 
         // --- 3. Itemized Table ---
         const tableTop = doc.y;
         const itemCol = 50;
-        const totalCol = doc.page.width - 150;
         const amountCol = doc.page.width - 100;
 
         // Table Header
@@ -116,38 +121,34 @@ export const generateReceiptPDF = (details) => {
 
         // Table Body
         const rowTop = tableTop + 35;
-        doc.fillColor(textColor).font('Helvetica-Bold').fontSize(11);
-        doc.text(`Event Registration: ${eventTitle}`, itemCol + 10, rowTop, { width: 300 });
+        const descriptionX = itemCol + 10;
+        const priceX = amountCol - 10;
         
-        // --- 🚀 FIX START ---
-        // Get Y position *after* title is drawn
-        const titleBottomY = doc.y; 
-        // Draw date *below* the title, adding a small 2px margin
-        doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor).text(`Event Date: ${formattedEventDate}`, itemCol + 10, titleBottomY + 2, { width: 300 });
-        const dateBottomY = doc.y; // Get Y position *after* date is drawn
+        doc.font('Helvetica-Bold').fontSize(11).text(`₹${amount}`, priceX, rowTop, { width: 50, align: 'right' });
+        const priceY = doc.y;
 
-        // Draw the price, aligned with the top of the row
-        doc.font('Helvetica-Bold').fontSize(11).text(`₹${amount}`, amountCol - 10, rowTop, { width: 50, align: 'right' });
-        // --- 🚀 FIX END ---
+        doc.fillColor(textColor).font('Helvetica-Bold').fontSize(11);
+        doc.text(`Event Registration: ${eventTitle}`, descriptionX, rowTop, { width: 300 });
+        const titleBottomY = doc.y;
+        
+        doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor).text(`Event Date: ${formattedEventDate}`, descriptionX, titleBottomY + 2, { width: 300 });
+        const dateBottomY = doc.y;
 
+        const rowBottomY = Math.max(dateBottomY, priceY);
+        
         // --- 4. Total Section ---
-        // Position total section relative to the bottom of the row
-        const totalTopPos = dateBottomY + 20; 
+        const totalTopPos = rowBottomY + 20; 
         doc.rect(300, totalTopPos, doc.page.width - 350, 1).fill(borderColor).stroke(borderColor);
-        doc.moveDown(0.5);
-
-        // Need to set Y explicitly since we're drawing in columns
-        let totalY = doc.y; 
+        
+        let totalY = totalTopPos + 10;
         doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor);
         doc.text('Subtotal:', 300, totalY, { align: 'left' });
         doc.text(`₹${amount}`, 440, totalY, { align: 'right' });
-        doc.moveDown(0.5);
+        totalY += 20;
         
-        totalY = doc.y;
         doc.rect(300, totalY, doc.page.width - 350, 2).fill(primaryColor).stroke(primaryColor);
-        doc.moveDown(0.5);
+        totalY += 5;
 
-        totalY = doc.y;
         doc.font('Helvetica-Bold').fontSize(14);
         doc.text('TOTAL PAID:', 300, totalY, { align: 'left' });
         doc.text(`₹${amount}`, 440, totalY, { align: 'right' });
@@ -305,19 +306,19 @@ export const generateDonationPDF = (details) => {
         // --- 5. Total ---
         const totalTopPos = rowTop + 40;
         doc.rect(300, totalTopPos, doc.page.width - 350, 1).fill(borderColor).stroke(borderColor);
-        doc.moveDown(0.5);
-
-        doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor);
-        doc.text('Subtotal:', 300, doc.y, { align: 'left' });
-        doc.text(`₹${amount}`, 440, doc.y - 12, { align: 'right' }); // -12 to align with "Subtotal"
-        doc.moveDown(0.5);
         
-        doc.rect(300, doc.y, doc.page.width - 350, 2).fill(primaryColor).stroke(primaryColor);
-        doc.moveDown(0.5);
+        let totalY = totalTopPos + 10;
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor);
+        doc.text('Subtotal:', 300, totalY, { align: 'left' });
+        doc.text(`₹${amount}`, 440, totalY, { align: 'right' });
+        totalY += 20;
+        
+        doc.rect(300, totalY, doc.page.width - 350, 2).fill(primaryColor).stroke(primaryColor);
+        totalY += 5;
 
         doc.font('Helvetica-Bold').fontSize(14);
-        doc.text('Total Donated:', 300, doc.y, { align: 'left' });
-        doc.text(`₹${amount}`, 440, doc.y - 14, { align: 'right' }); // -14 to align with "TOTAL PAID"
+        doc.text('Total Donated:', 300, totalY, { align: 'left' });
+        doc.text(`₹${amount}`, 440, totalY, { align: 'right' });
 
         // --- 6. Footer ---
         const pageBottom = doc.page.height - 100;
@@ -339,7 +340,7 @@ export const generateDonationPDF = (details) => {
     });
 };
 
-// 🚀 --- NEW FUNCTION ADDED FOR FREE EVENTS --- 🚀
+// 🚀 --- UPDATED FREE EVENT PDF FUNCTION --- 🚀
 
 /**
  * Generates a professional PDF event confirmation for a FREE event.
@@ -355,10 +356,10 @@ export const generateFreeReceiptPDF = (details) => {
             receiptId // Use the Registration ID
         } = details;
 
-        const receiptNumber = `REG-FREE-${receiptId.slice(-10).toUpperCase()}`;
         const formattedEventDate = formatPdfDate(eventDate, true); // Include time for event date
         const issueDate = formatPdfDate(new Date());
-        
+        const receiptNumber = `REG-FREE-${receiptId.slice(-10).toUpperCase()}`;
+
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const buffers = [];
 
@@ -378,7 +379,6 @@ export const generateFreeReceiptPDF = (details) => {
         const successColor = '#10B981'; // Green
 
         // --- 1. Header (Logo & Company Info) ---
-        // doc.image('path/to/your/logo.png', 50, 45, { fit: [150, 50] });
         doc.fontSize(24).font('Helvetica-Bold').fillColor(primaryColor).text('ALUMNI NETWORK', 50, 50);
 
         doc.font('Helvetica').fontSize(10).fillColor(textColor);
@@ -394,23 +394,35 @@ export const generateFreeReceiptPDF = (details) => {
         doc.rect(50, doc.y + 5, doc.page.width - 100, 2).fill(primaryColor).stroke(primaryColor);
         doc.moveDown(1);
 
-        // Receipt Details (Right Aligned)
+        // --- 🚀 FIX: DYNAMIC Y-POSITIONING ---
         const infoTop = doc.y;
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('CONFIRMATION #:', 350, infoTop, { align: 'left' });
-        doc.font('Helvetica').fillColor(textColor).text(receiptNumber, 450, infoTop, { align: 'right' });
-
-        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('DATE ISSUED:', 350, infoTop + 15, { align: 'left' });
-        doc.font('Helvetica').fillColor(textColor).text(issueDate, 450, infoTop + 15, { align: 'right' });
-
-        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('STATUS:', 350, infoTop + 30, { align: 'left' });
-        doc.font('Helvetica-Bold').fillColor(successColor).text('CONFIRMED', 450, infoTop + 30, { align: 'right' });
 
         // Bill To (Left Aligned)
         doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('REGISTRANT', 50, infoTop);
         doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor).text(fullName, 50, infoTop + 15);
         doc.font('Helvetica').fillColor(mutedTextColor).text(email, 50, infoTop + 30);
+        const leftColBottom = doc.y; // Get bottom of left column
+
+        // Receipt Details (Right Aligned - Drawn sequentially)
+        let rightColY = infoTop;
+        const rightColLabelX = 350;
+        const rightColValueX = 450;
+        const rightColWidth = 95; // (PageWidth - Margin - X) = 595 - 50 - 450 = 95
+
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('CONFIRMATION #:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(receiptNumber, rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        rightColY = doc.y + 5; // Move Y *after* drawing
+
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('DATE ISSUED:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(issueDate, rightColValueX, rightColY, { align: 'right', width: rightColWidth });
+        rightColY = doc.y + 5;
+
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('STATUS:', rightColLabelX, rightColY, { align: 'left' });
+        doc.font('Helvetica-Bold').fillColor(successColor).text('CONFIRMED', rightColValueX, rightColY, { align: 'right', width: rightColWidth });
         
-        doc.y = infoTop + 55; // Set Y position below both blocks
+        // Set doc.y to the bottom of whichever column is tallest
+        doc.y = Math.max(leftColBottom, doc.y) + 20; 
+        // --- 🚀 END FIX ---
 
         // --- 3. Itemized Table ---
         const tableTop = doc.y;
@@ -423,37 +435,29 @@ export const generateFreeReceiptPDF = (details) => {
         doc.text('DESCRIPTION', itemCol + 10, tableTop + 8);
         doc.text('TOTAL', amountCol - 10, tableTop + 8, { width: 50, align: 'right' });
 
-        // --- 🚀 FIX START ---
         // Table Body
         const rowTop = tableTop + 35;
         const descriptionX = itemCol + 10;
         const priceX = amountCol - 10;
-
-        // Draw the price, aligned with the top of the row
+        
         doc.font('Helvetica-Bold').fontSize(11).text('₹0.00', priceX, rowTop, { width: 50, align: 'right' });
-        const priceY = doc.y; // Get Y position after drawing price
+        const priceY = doc.y;
 
-        // Draw the title and let it wrap
         doc.fillColor(textColor).font('Helvetica-Bold').fontSize(11);
         doc.text(`Free Registration: ${eventTitle}`, descriptionX, rowTop, { width: 300 });
-        const titleBottomY = doc.y; // Y *after* drawing title
-
-        // Draw date *below* the title, adding a small 2px margin
+        const titleBottomY = doc.y;
+        
         doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor);
         doc.text(`Event Date: ${formattedEventDate}`, descriptionX, titleBottomY + 2, { width: 300 });
-        const dateBottomY = doc.y; // Y *after* drawing date
+        const dateBottomY = doc.y;
 
-        // Find the lowest point between the description and price columns
         const rowBottomY = Math.max(dateBottomY, priceY);
-        // --- 🚀 FIX END ---
         
         // --- 4. Total Section ---
-        const totalTopPos = rowBottomY + 20; // Start 20px below the bottom of the row
+        const totalTopPos = rowBottomY + 20; 
         doc.rect(300, totalTopPos, doc.page.width - 350, 1).fill(borderColor).stroke(borderColor);
-        doc.moveDown(0.5);
-
-        // Need to set Y explicitly since we're drawing in columns
-        let totalY = doc.y;
+        
+        let totalY = totalTopPos + 10;
         doc.font('Helvetica-Bold').fontSize(14).fillColor(textColor);
         doc.text('TOTAL:', 300, totalY, { align: 'left' });
         doc.text('₹0.00', 440, totalY, { align: 'right' });
