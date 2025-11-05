@@ -2,6 +2,10 @@ import Donation from '../models/Donation.js';
 import Razorpay from 'razorpay';
 import mongoose from 'mongoose'; 
 
+// 🚀 --- ADD THESE IMPORTS --- 🚀
+import { sendDonationEmail } from '../utils/emailService.js';
+import { generateDonationPDF } from '../utils/pdfService.js';
+
 // --- RAZORPAY CONFIGURATION (Kept as is) ---
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
@@ -70,6 +74,35 @@ export const saveDonation = async (req, res) => {
         await newDonation.save();
 
         console.log(`✅ Donation of ₹${amount} saved for ${donorDetails.email}.`);
+
+        // 🚀 --- NEW: Send Email & PDF Receipt --- 🚀
+        try {
+            // 1. Create details object for PDF and Email
+            const receiptDetails = {
+                email: donorDetails.email,
+                fullName: donorDetails.name, // From donorDetails
+                amount: newDonation.amount,  // From the saved document
+                paymentId: newDonation.razorpayPaymentId // From saved document
+            };
+
+            // 2. Generate the PDF
+            const pdfBase64 = await generateDonationPDF(receiptDetails);
+
+            // 3. Send the email (no await, run in background)
+            sendDonationEmail({
+                ...receiptDetails,
+                pdfAttachment: pdfBase64 
+            }).catch(emailError => {
+                // Log error, but don't fail the API response
+                console.error(`[Non-Blocking Error] Failed to send donation email for ${receiptDetails.email}:`, emailError);
+            });
+
+        } catch (pdfError) {
+            // Log PDF error, but don't fail the API response
+            console.error(`[Non-Blocking Error] Failed to generate PDF for ${donorDetails.email}:`, pdfError);
+        }
+        // 🚀 --- END OF NEW BLOCK --- 🚀
+
         
         // 4. CORE REAL-TIME FIX: Calculate new total and emit socket event
         if (req.io) { 
@@ -78,7 +111,6 @@ export const saveDonation = async (req, res) => {
                 { $match: { userId: userObjectId, status: 'successful' } },
                 
                 // 🛑 CORRECTED FIX: Use $addFields to ensure the field is numeric (Double) 
-                // This is the most reliable way to handle stored string/ambiguous numeric types.
                 { $addFields: { numericAmount: { $toDouble: "$amount" } } },
                 
                 // 2. Group and Sum the *new* numeric field

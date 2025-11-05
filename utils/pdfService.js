@@ -153,3 +153,96 @@ export const generateReceiptPDF = (details) => {
         doc.end();
     });
 };
+
+// 🚀 --- NEW DONATION FUNCTION ADDED BELOW --- 🚀
+
+/**
+ * Generates a PDF donation receipt and returns it as a base64 string.
+ * @param {object} details - The donation and donor details.
+ */
+export const generateDonationPDF = (details) => {
+    return new Promise((resolve, reject) => {
+        const {
+            fullName,
+            email,
+            amount,
+            paymentId
+        } = details;
+
+        const issueDate = formatPdfDate(new Date());
+
+        const doc = new PDFDocument({ size: 'A4', margin: 50 });
+        const buffers = [];
+
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+            const pdfData = Buffer.concat(buffers).toString('base64');
+            resolve(pdfData);
+        });
+        doc.on('error', reject);
+
+        // --- Brand Colors ---
+        const primaryColor = '#3B82F6';
+        const accentColor = '#EBF4FF';
+        const textColor = '#333333';
+        const mutedTextColor = '#666666';
+        const successColor = '#28a745';
+
+        // --- Header ---
+        doc.rect(0, 0, doc.page.width, 80).fill(primaryColor);
+        // Replace 'YOUR_LOGO_PATH' with a real file path or use text
+        // doc.image('path/to/your/logo.png', 50, 20, { width: 150 }); 
+        doc.fontSize(24).fillColor('#FFFFFF').text('Alumni Network', 50, 30, { align: 'left' });
+        doc.fontSize(10).fillColor('#FFFFFF').text('OFFICIAL DONATION RECEIPT', doc.page.width - 50, 35, { align: 'right' });
+        doc.moveDown();
+
+        // --- Main Content Area ---
+        doc.fillColor(textColor).font('Helvetica-Bold').fontSize(28).text('Thank You For Your Donation', 50, 120);
+        doc.moveDown(0.5);
+        doc.font('Helvetica').fontSize(12).fillColor(mutedTextColor).text(`Dear ${fullName}, we are deeply grateful for your support.`, 50, doc.y);
+        doc.moveDown(2);
+
+        // --- Receipt Details Section ---
+        const startY = doc.y;
+        doc.rect(50, startY - 10, doc.page.width - 100, 1).fill(accentColor);
+        doc.moveDown(0.5);
+        doc.fontSize(14).font('Helvetica-Bold').fillColor(textColor).text('Receipt Details:', 50, doc.y);
+        doc.moveDown(0.5);
+
+        doc.font('Helvetica').fontSize(12).fillColor(mutedTextColor);
+        doc.text(`Transaction ID: `, 50, doc.y, { continued: true }).fillColor(textColor).text(paymentId || 'N/A', { align: 'right' });
+        doc.fillColor(mutedTextColor).text(`Date Issued: `, 50, doc.y, { continued: true }).fillColor(textColor).text(issueDate, { align: 'right' });
+        doc.fillColor(mutedTextColor).text(`Donor Name: `, 50, doc.y, { continued: true }).fillColor(textColor).text(fullName, { align: 'right' });
+        doc.fillColor(mutedTextColor).text(`Donor Email: `, 50, doc.y, { continued: true }).fillColor(textColor).text(email, { align: 'right' });
+        doc.moveDown(2);
+        
+        // --- Line Item Table ---
+        doc.font('Helvetica-Bold').text('Description', 50, doc.y, { continued: true });
+        doc.text('Amount', 0, doc.y, { align: 'right' });
+        doc.rect(50, doc.y + 5, 510, 0.5).stroke();
+        doc.moveDown(1);
+
+        doc.font('Helvetica').text('Contribution to Alumni Network Fund', 50, doc.y, { width: 400 });
+        doc.text(`₹${amount}`, 0, doc.y, { align: 'right' });
+        doc.moveDown(2);
+        
+        doc.rect(50, doc.y + 5, 510, 0.5).stroke();
+        doc.moveDown(1);
+
+        // --- Total ---
+        doc.fontSize(14).font('Helvetica-Bold');
+        doc.text('Total Donation', 50, doc.y, { continued: true });
+        doc.fillColor(successColor).text(`₹${amount}`, 0, doc.y, { align: 'right' });
+        doc.moveDown(3);
+
+        // --- Footer ---
+        doc.rect(0, doc.page.height - 60, doc.page.width, 60).fill(primaryColor);
+        doc.fontSize(10).fillColor('#FFFFFF');
+        doc.text('This is an auto-generated receipt. Thank you for your generous contribution!', 
+                 50, doc.page.height - 40, { align: 'center', width: doc.page.width - 100 });
+        doc.text('Contact us: mcaigitalumni@gmail.com', 
+                 50, doc.page.height - 25, { align: 'center', width: doc.page.width - 100 });
+
+        doc.end();
+    });
+};

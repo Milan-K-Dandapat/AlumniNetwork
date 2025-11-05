@@ -107,17 +107,17 @@ export const sendPaymentConfirmationEmail = async (details) => {
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f6f7f9; border-radius: 8px; padding: 20px 15px;">
                                 <tr>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
-                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762210764/logo_bh9u8i.png" alt="Calendar" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://i.imgur.com/gA0sYjU.png" alt="Calendar" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">When</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">${formattedDate}</p>
                                     </td>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center; border-left: 1px solid #ddd; border-right: 1px solid #ddd;">
-                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762210764/logo_bh9u8i.png" alt="Location" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://i.imgur.com/g0nLggC.png" alt="Location" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Where</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">${eventLocation}</p>
                                     </td>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
-                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762210764/logo_bh9u8i.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://i.imgur.com/gbtPzVs.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Have Questions?</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">Contact us at<br><a href="mailto:mcaigitalumni@gmail.com" style="color: #3B82F6; text-decoration: none;">mcaigitalumni@gmail.com</a></p>
                                     </td>
@@ -166,6 +166,114 @@ export const sendPaymentConfirmationEmail = async (details) => {
             console.error(error.response.body);
         }
         // We throw the error so the calling function can catch it if needed
+        throw error; 
+    }
+};
+
+// 🚀 --- NEW FUNCTION ADDED BELOW --- 🚀
+
+/**
+ * Sends a donation confirmation email.
+ * @param {object} details - An object containing donor and payment details.
+ */
+export const sendDonationEmail = async (details) => {
+    const {
+        email,
+        fullName,
+        amount,
+        paymentId,
+        pdfAttachment
+    } = details;
+
+    const msg = {
+        to: email,
+        from: 'mcaigitalumni@gmail.com',
+        subject: 'Thank You for Your Generous Donation!',
+
+        // Plain text version
+        text: `Hi ${fullName},\n\nThank you for your generous donation of ₹${amount} to the Alumni Network. Your contribution is invaluable.\n\nYour receipt is attached.\n\nPayment ID: ${paymentId}\n\nBest regards,\nThe Alumni Network Team`,
+
+        // HTML version
+        html: `
+<body style="margin: 0; padding: 0; background-color: #f6f7f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td style="padding: 20px 0;">
+                <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.05);">
+                    
+                    <tr>
+                        <td align="center" style="padding: 20px 0 15px 0; border-bottom: 1px solid #eeeeee;">
+                            <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762210764/logo_bh9u8i.png" alt="Alumni Network" width="180" style="display: block;">
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td style="padding: 40px 40px 20px 40px; text-align: left;">
+                            <h1 style="color: #111111; font-size: 26px; font-weight: 600; margin: 0 0 15px 0;">Thank You, ${fullName}!</h1>
+                            <p style="color: #444444; font-size: 16px; line-height: 1.6; margin: 0;">
+                                We are incredibly grateful for your generous donation of <strong>₹${amount}</strong>.
+                                <br><br>
+                                Your support helps us fund scholarships, organize events, and strengthen our alumni community. A receipt for your contribution is attached to this email.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td style="padding: 10px 40px 30px 40px;">
+                            <h2 style="font-size: 18px; color: #333; margin: 0 0 15px 0; border-bottom: 2px solid #3B82F6; padding-bottom: 5px;">Donation Summary</h2>
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px;">
+                                <tr>
+                                    <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Donor</td>
+                                    <td align="right" style="padding: 15px 20px; color: #111111; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${fullName}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Payment ID</td>
+                                    <td align="right" style="padding: 15px 20px; color: #111111; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${paymentId}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 20px; color: #333333; font-size: 17px; font-weight: 600;">Amount Donated</td>
+                                    <td align="right" style="padding: 20px; color: #28a745; font-size: 17px; font-weight: 600;">₹${amount}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; border-top: 1px solid #eeeeee;">
+                            <p style="color: #888888; font-size: 12px; margin: 0;">
+                                Best regards,
+                                <br>
+                                The Alumni Network Team
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+        `,
+
+        // ATTACHMENT
+        attachments: [
+            {
+                content: pdfAttachment,
+                filename: `donation-receipt-${paymentId}.pdf`,
+                type: 'application/pdf',
+                disposition: 'attachment',
+                contentId: 'receipt'
+            }
+        ]
+    };
+
+    try {
+        await sgMail.send(msg);
+        console.log(`Donation confirmation email sent to ${email} (with PDF)`);
+    } catch (error) {
+        console.error('Error sending donation confirmation email:', error);
+        if (error.response) {
+            console.error(error.response.body);
+        }
         throw error; 
     }
 };
