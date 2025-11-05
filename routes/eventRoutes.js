@@ -115,10 +115,34 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/register-free-event', async (req, res) => {
     try {
-        const { eventId, userId } = req.body; 
+        const { eventId, userId, email } = req.body; // <-- Get email
         if (!eventId || eventId === 'N/A') {
             return res.status(400).json({ message: 'A valid Event ID is required for registration.' });
         }
+
+        // 🚀 --- DUPLICATE CHECK --- 🚀
+        const checkQuery = {
+            eventId: eventId,
+            paymentStatus: 'success',
+            $or: []
+        };
+        // Add checks only if values are provided
+        if (userId && userId !== 'N/A') {
+            checkQuery.$or.push({ userId: userId });
+        }
+        if (email) {
+            checkQuery.$or.push({ email: email });
+        }
+
+        // Only run check if we have a way to identify the user
+        if (checkQuery.$or.length > 0) {
+            const existingRegistration = await RegistrationPayment.findOne(checkQuery);
+            if (existingRegistration) {
+                return res.status(409).json({ message: 'You are already registered for this event.' });
+            }
+        }
+        // 🚀 --- END OF DUPLICATE CHECK --- 🚀
+
         const newRegistration = new RegistrationPayment({
             ...req.body,
             amount: 0, // Explicitly set amount to 0
@@ -178,10 +202,34 @@ router.post('/register-free-event', async (req, res) => {
  */
 router.post('/create-order', async (req, res) => {
     try {
-        const { amount, eventId } = req.body;
+        const { amount, eventId, userId, email } = req.body; // <-- Get email and userId
         if (!eventId || eventId === 'N/A') {
             return res.status(400).json({ message: 'A valid Event ID is required to create an order.' });
         }
+
+        // 🚀 --- DUPLICATE CHECK --- 🚀
+        const checkQuery = {
+            eventId: eventId,
+            paymentStatus: 'success',
+            $or: []
+        };
+        // Add checks only if values are provided
+        if (userId && userId !== 'N/A') {
+            checkQuery.$or.push({ userId: userId });
+        }
+        if (email) {
+            checkQuery.$or.push({ email: email });
+        }
+
+        // Only run check if we have a way to identify the user
+        if (checkQuery.$or.length > 0) {
+            const existingRegistration = await RegistrationPayment.findOne(checkQuery);
+            if (existingRegistration) {
+                return res.status(409).json({ message: 'You are already registered for this event.' });
+            }
+        }
+        // 🚀 --- END OF DUPLICATE CHECK --- 🚀
+
         const registration = new RegistrationPayment({
             ...req.body,
             paymentStatus: 'created',
@@ -321,6 +369,7 @@ router.post('/verify-payment', async (req, res) => {
 
 // ====================================================================
 // --- PRIVATE USER ROUTES ---
+// (These routes require a user to be logged in)
 // ====================================================================
 
 /**
@@ -357,6 +406,7 @@ router.get('/my-registrations', auth, async (req, res) => {
 
 // ====================================================================
 // --- ADMIN PANEL ROUTES ---
+// (These routes are now secured and require ADMIN access)
 // ====================================================================
 
 /**
