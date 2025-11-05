@@ -69,8 +69,8 @@ export const generateReceiptPDF = (details) => {
         // Company / Organization Info
         doc.font('Helvetica').fontSize(10).fillColor(textColor);
         doc.text('IGIT MCA Alumni Network', 400, 50, { align: 'right' });
-        doc.text('Your University Address', 400, 65, { align: 'right' });
-        doc.text('City, State, Pin', 400, 80, { align: 'right' });
+        doc.text('IGIT Sarang', 400, 65, { align: 'right' });
+        doc.text('Dhenkanal, Odisha, 759146', 400, 80, { align: 'right' });
         doc.text('mcaigitalumni@gmail.com', 400, 95, { align: 'right' });
         
         doc.moveDown(5);
@@ -317,6 +317,128 @@ export const generateDonationPDF = (details) => {
         
         doc.font('Helvetica-Oblique').fontSize(10).fillColor(mutedTextColor);
         doc.text('This is an official receipt. Thank you for your generous contribution.', 50, doc.y, {
+            align: 'center',
+            width: doc.page.width - 100
+        });
+
+        // Finalize the PDF
+        doc.end();
+    });
+};
+
+// 🚀 --- NEW FUNCTION ADDED FOR FREE EVENTS --- 🚀
+
+/**
+ * Generates a professional PDF event confirmation for a FREE event.
+ * @param {object} details - The registration and event details.
+ */
+export const generateFreeReceiptPDF = (details) => {
+    return new Promise((resolve, reject) => {
+        const {
+            fullName,
+            email,
+            eventTitle,
+            eventDate,
+            receiptId // Use the Registration ID
+        } = details;
+
+        const formattedEventDate = formatPdfDate(eventDate, true); // Include time for event date
+        const issueDate = formatPdfDate(new Date());
+        const receiptNumber = `REG-FREE-${receiptId.slice(-10).toUpperCase()}`;
+
+        const doc = new PDFDocument({ size: 'A4', margin: 50 });
+        const buffers = [];
+
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+            const pdfData = Buffer.concat(buffers).toString('base64');
+            resolve(pdfData);
+        });
+        doc.on('error', reject);
+
+        // --- Brand Colors ---
+        const primaryColor = '#3B82F6';
+        const tableHeaderColor = '#F3F4F6'; // Light gray
+        const textColor = '#1F2937'; // Darker text
+        const mutedTextColor = '#6B7280';
+        const borderColor = '#E5E7EB';
+        const successColor = '#10B981'; // Green
+
+        // --- 1. Header (Logo & Company Info) ---
+        // doc.image('path/to/your/logo.png', 50, 45, { fit: [150, 50] });
+        doc.fontSize(24).font('Helvetica-Bold').fillColor(primaryColor).text('ALUMNI NETWORK', 50, 50);
+
+        doc.font('Helvetica').fontSize(10).fillColor(textColor);
+        doc.text('IGIT MCA Alumni Network', 400, 50, { align: 'right' });
+        doc.text('IGIT Sarang', 400, 65, { align: 'right' });
+        doc.text('Dhenkanal, Odisha, 759146', 400, 80, { align: 'right' });
+        doc.text('mcaigitalumni@gmail.com', 400, 95, { align: 'right' });
+        
+        doc.moveDown(5);
+
+        // --- 2. Title & Receipt Details ---
+        doc.fontSize(22).font('Helvetica-Bold').fillColor(textColor).text('REGISTRATION CONFIRMATION', 50, doc.y);
+        doc.rect(50, doc.y + 5, doc.page.width - 100, 2).fill(primaryColor).stroke(primaryColor);
+        doc.moveDown(1);
+
+        // Receipt Details (Right Aligned)
+        const infoTop = doc.y;
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('CONFIRMATION #:', 350, infoTop, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(receiptNumber, 450, infoTop, { align: 'right' });
+
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('DATE ISSUED:', 350, infoTop + 15, { align: 'left' });
+        doc.font('Helvetica').fillColor(textColor).text(issueDate, 450, infoTop + 15, { align: 'right' });
+
+        doc.font('Helvetica-Bold').fillColor(mutedTextColor).text('STATUS:', 350, infoTop + 30, { align: 'left' });
+        doc.font('Helvetica-Bold').fillColor(successColor).text('CONFIRMED', 450, infoTop + 30, { align: 'right' });
+
+        // Bill To (Left Aligned)
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(mutedTextColor).text('REGISTRANT', 50, infoTop);
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor).text(fullName, 50, infoTop + 15);
+        doc.font('Helvetica').fillColor(mutedTextColor).text(email, 50, infoTop + 30);
+        
+        doc.y = infoTop + 55; // Set Y position below both blocks
+
+        // --- 3. Itemized Table ---
+        const tableTop = doc.y;
+        const itemCol = 50;
+        const amountCol = doc.page.width - 100;
+
+        // Table Header
+        doc.rect(50, tableTop, doc.page.width - 100, 25).fill(tableHeaderColor);
+        doc.fillColor(mutedTextColor).font('Helvetica-Bold').fontSize(10);
+        doc.text('DESCRIPTION', itemCol + 10, tableTop + 8);
+        doc.text('TOTAL', amountCol - 10, tableTop + 8, { width: 50, align: 'right' });
+
+        // Table Body
+        const rowTop = tableTop + 35;
+        doc.fillColor(textColor).font('Helvetica-Bold').fontSize(11);
+        doc.text(`Free Registration: ${eventTitle}`, itemCol + 10, rowTop, { width: 300 });
+        
+        doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor).text(`Event Date: ${formattedEventDate}`, itemCol + 10, rowTop + 15, { width: 300 });
+
+        doc.font('Helvetica-Bold').fontSize(11).text('₹0.00', amountCol - 10, rowTop, { width: 50, align: 'right' });
+        
+        // --- 4. Total Section ---
+        const totalTopPos = rowTop + 50; // Adjusted for the extra line
+        doc.rect(300, totalTopPos, doc.page.width - 350, 1).fill(borderColor).stroke(borderColor);
+        doc.moveDown(0.5);
+
+        doc.font('Helvetica-Bold').fontSize(14).fillColor(textColor);
+        doc.text('TOTAL:', 300, doc.y, { align: 'left' });
+        doc.text('₹0.00', 440, doc.y - 14, { align: 'right' }); // -14 to align with "TOTAL"
+
+        // --- 5. Footer ---
+        const pageBottom = doc.page.height - 100;
+        doc.y = pageBottom;
+        doc.rect(50, doc.y, doc.page.width - 100, 1).fill(borderColor).stroke(borderColor);
+        doc.moveDown(1);
+        
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor).text('See You There!', 50, doc.y, { align: 'center' });
+        doc.moveDown(0.5);
+        
+        doc.font('Helvetica-Oblique').fontSize(10).fillColor(mutedTextColor);
+        doc.text('This is an official confirmation for your free event registration.', 50, doc.y, {
             align: 'center',
             width: doc.page.width - 100
         });

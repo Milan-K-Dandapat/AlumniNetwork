@@ -8,8 +8,10 @@ import Event from '../models/Event.js';
 import auth, { isAdmin } from '../middleware/auth.js'; 
 
 // 🚀 --- IMPORTS FOR EMAIL & PDF --- 🚀
-import { sendPaymentConfirmationEmail } from '../utils/emailService.js';
-import { generateReceiptPDF } from '../utils/pdfService.js'; // <-- NEW
+// UPDATED: Added sendFreeEventEmail
+import { sendPaymentConfirmationEmail, sendFreeEventEmail } from '../utils/emailService.js'; 
+// UPDATED: Added generateFreeReceiptPDF
+import { generateReceiptPDF, generateFreeReceiptPDF } from '../utils/pdfService.js'; 
 
 const router = express.Router();
 
@@ -55,7 +57,6 @@ const fetchAndEmitUpdatedEvents = async (io, userId) => {
 
 // ====================================================================
 // --- PUBLIC FACING & PAYMENT ROUTES ---
-// (These routes are correctly left PUBLIC)
 // ====================================================================
 
 /**
@@ -120,14 +121,49 @@ router.post('/register-free-event', async (req, res) => {
         }
         const newRegistration = new RegistrationPayment({
             ...req.body,
+            amount: 0, // Explicitly set amount to 0
             paymentStatus: 'success',
             razorpay_order_id: `free_event_${Date.now()}`
         });
-        await newRegistration.save();
+        await newRegistration.save(); // Save to get the _id
 
         if (req.io && userId) {
             await fetchAndEmitUpdatedEvents(req.io, userId);
         }
+        
+        // 🚀 --- NEW: Send Free Confirmation Email & PDF --- 🚀
+        try {
+            // 1. Fetch the full event details for the email/PDF
+            let event = null;
+            if (newRegistration.eventId) {
+                event = await Event.findById(newRegistration.eventId);
+            }
+
+            // 2. Create details object
+            const emailDetails = {
+                email: newRegistration.email,
+                fullName: newRegistration.fullName,
+                eventTitle: event ? event.title : newRegistration.eventTitle, // Use full event title
+                eventDate: event ? event.date : null, // Use full event date
+                eventLocation: event ? (event.location || 'Venue TBD') : 'Venue TBD', // Use full event location
+                receiptId: newRegistration._id.toString() // Use the new registration ID
+            };
+
+            // 3. Generate the PDF
+            const pdfBase64 = await generateFreeReceiptPDF(emailDetails);
+
+            // 4. Send the email (no await, run in background)
+            sendFreeEventEmail({
+                ...emailDetails,
+                pdfAttachment: pdfBase64 
+            }).catch(emailError => {
+                console.error(`[Non-Blocking Error] Failed to send FREE event email for reg ${newRegistration._id}:`, emailError);
+            });
+
+        } catch (emailPdfError) {
+             console.error(`[Non-Blocking Error] Failed to generate PDF/email for FREE event ${newRegistration._id}:`, emailPdfError);
+        }
+        // 🚀 --- END OF NEW BLOCK --- 🚀
         
         res.status(201).json({ message: 'Free registration successful!', data: newRegistration });
     } catch (error) {
@@ -184,7 +220,6 @@ router.post('/verify-payment', async (req, res) => {
         registrationToUpdate = await RegistrationPayment.findById(registrationId);
         
         if (!registrationToUpdate) {
-            // Return 404 with JSON if record not found
             return res.status(404).json({ success: false, message: 'Registration record not found.' });
         }
         
@@ -286,7 +321,6 @@ router.post('/verify-payment', async (req, res) => {
 
 // ====================================================================
 // --- PRIVATE USER ROUTES ---
-// (These routes require a user to be logged in)
 // ====================================================================
 
 /**
@@ -323,7 +357,6 @@ router.get('/my-registrations', auth, async (req, res) => {
 
 // ====================================================================
 // --- ADMIN PANEL ROUTES ---
-// (These routes are now secured and require ADMIN access)
 // ====================================================================
 
 /**
