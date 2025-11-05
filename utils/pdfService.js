@@ -22,12 +22,12 @@ const formatPdfDate = (date, includeTime = false) => {
     }
 };
 
-// 🚀 --- UPDATED EVENT RECEIPT FUNCTION --- 🚀
 /**
  * Generates a professional PDF event receipt.
  * @param {object} details - The registration and event details.
  */
 export const generateReceiptPDF = (details) => {
+    // This is your existing function for Event Receipts (Unchanged)
     return new Promise((resolve, reject) => {
         const {
             fullName,
@@ -118,26 +118,38 @@ export const generateReceiptPDF = (details) => {
         doc.fillColor(textColor).font('Helvetica-Bold').fontSize(11);
         doc.text(`Event Registration: ${eventTitle}`, itemCol + 10, rowTop, { width: 300 });
         
-        doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor).text(`Event Date: ${formattedEventDate}`, itemCol + 10, rowTop + 15, { width: 300 });
+        // --- 🚀 FIX START ---
+        // Get Y position *after* title is drawn
+        const titleBottomY = doc.y; 
+        // Draw date *below* the title, adding a small 2px margin
+        doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor).text(`Event Date: ${formattedEventDate}`, itemCol + 10, titleBottomY + 2, { width: 300 });
+        const dateBottomY = doc.y; // Get Y position *after* date is drawn
 
+        // Draw the price, aligned with the top of the row
         doc.font('Helvetica-Bold').fontSize(11).text(`₹${amount}`, amountCol - 10, rowTop, { width: 50, align: 'right' });
-        
+        // --- 🚀 FIX END ---
+
         // --- 4. Total Section ---
-        const totalTopPos = rowTop + 50; // Adjusted for the extra line
+        // Position total section relative to the bottom of the row
+        const totalTopPos = dateBottomY + 20; 
         doc.rect(300, totalTopPos, doc.page.width - 350, 1).fill(borderColor).stroke(borderColor);
         doc.moveDown(0.5);
 
+        // Need to set Y explicitly since we're drawing in columns
+        let totalY = doc.y; 
         doc.font('Helvetica-Bold').fontSize(12).fillColor(textColor);
-        doc.text('Subtotal:', 300, doc.y, { align: 'left' });
-        doc.text(`₹${amount}`, 440, doc.y - 12, { align: 'right' }); // -12 to align with "Subtotal"
+        doc.text('Subtotal:', 300, totalY, { align: 'left' });
+        doc.text(`₹${amount}`, 440, totalY, { align: 'right' });
         doc.moveDown(0.5);
         
-        doc.rect(300, doc.y, doc.page.width - 350, 2).fill(primaryColor).stroke(primaryColor);
+        totalY = doc.y;
+        doc.rect(300, totalY, doc.page.width - 350, 2).fill(primaryColor).stroke(primaryColor);
         doc.moveDown(0.5);
 
+        totalY = doc.y;
         doc.font('Helvetica-Bold').fontSize(14);
-        doc.text('TOTAL PAID:', 300, doc.y, { align: 'left' });
-        doc.text(`₹${amount}`, 440, doc.y - 14, { align: 'right' }); // -14 to align with "TOTAL PAID"
+        doc.text('TOTAL PAID:', 300, totalY, { align: 'left' });
+        doc.text(`₹${amount}`, 440, totalY, { align: 'right' });
 
         // --- 5. Footer ---
         const pageBottom = doc.page.height - 100;
@@ -410,23 +422,40 @@ export const generateFreeReceiptPDF = (details) => {
         doc.text('DESCRIPTION', itemCol + 10, tableTop + 8);
         doc.text('TOTAL', amountCol - 10, tableTop + 8, { width: 50, align: 'right' });
 
+        // --- 🚀 FIX START ---
         // Table Body
         const rowTop = tableTop + 35;
-        doc.fillColor(textColor).font('Helvetica-Bold').fontSize(11);
-        doc.text(`Free Registration: ${eventTitle}`, itemCol + 10, rowTop, { width: 300 });
-        
-        doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor).text(`Event Date: ${formattedEventDate}`, itemCol + 10, rowTop + 15, { width: 300 });
+        const descriptionX = itemCol + 10;
+        const priceX = amountCol - 10;
 
-        doc.font('Helvetica-Bold').fontSize(11).text('₹0.00', amountCol - 10, rowTop, { width: 50, align: 'right' });
+        // Draw the price, aligned with the top of the row
+        doc.font('Helvetica-Bold').fontSize(11).text('₹0.00', priceX, rowTop, { width: 50, align: 'right' });
+        const priceY = doc.y; // Get Y position after drawing price
+
+        // Draw the title and let it wrap
+        doc.fillColor(textColor).font('Helvetica-Bold').fontSize(11);
+        doc.text(`Free Registration: ${eventTitle}`, descriptionX, rowTop, { width: 300 });
+        const titleBottomY = doc.y; // Y *after* drawing title
+
+        // Draw date *below* the title, adding a small 2px margin
+        doc.font('Helvetica-Oblique').fontSize(9).fillColor(mutedTextColor);
+        doc.text(`Event Date: ${formattedEventDate}`, descriptionX, titleBottomY + 2, { width: 300 });
+        const dateBottomY = doc.y; // Y *after* drawing date
+
+        // Find the lowest point between the description and price columns
+        const rowBottomY = Math.max(dateBottomY, priceY);
+        // --- 🚀 FIX END ---
         
         // --- 4. Total Section ---
-        const totalTopPos = rowTop + 50; // Adjusted for the extra line
+        const totalTopPos = rowBottomY + 20; // Start 20px below the bottom of the row
         doc.rect(300, totalTopPos, doc.page.width - 350, 1).fill(borderColor).stroke(borderColor);
         doc.moveDown(0.5);
 
+        // Need to set Y explicitly since we're drawing in columns
+        let totalY = doc.y;
         doc.font('Helvetica-Bold').fontSize(14).fillColor(textColor);
-        doc.text('TOTAL:', 300, doc.y, { align: 'left' });
-        doc.text('₹0.00', 440, doc.y - 14, { align: 'right' }); // -14 to align with "TOTAL"
+        doc.text('TOTAL:', 300, totalY, { align: 'left' });
+        doc.text('₹0.00', 440, totalY, { align: 'right' });
 
         // --- 5. Footer ---
         const pageBottom = doc.page.height - 100;
