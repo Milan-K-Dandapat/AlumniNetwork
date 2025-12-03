@@ -113,7 +113,7 @@ export const verifyTeacher = async (req, res) => {
         </p>
         
         <a 
-            href="https://igitmcaalumni.netlify.app/login" 
+            href="https://mca.igitalumni.in/login" 
             style="background: linear-gradient(135deg, #181be8 0%, #0d133d 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;"
         >
           Log In Now
