@@ -53,7 +53,7 @@ export const verifyAlumni = async (req, res) => {
                 to: updatedAlumni.email,
                 
                 // ✅ YOUR LOGIC: Using your 'from' address logic
-                from: process.env.EMAIL_USER || 'igitmcaalumni@gmail.com', 
+                from: process.env.EMAIL_USER || 'mca@igitalumni.in', 
                 
                 // ✅ YOUR LOGIC: Using your requested emojis
                 subject: '🎉Congratulations! Your Alumni Account is Verified!',

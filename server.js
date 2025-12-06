@@ -58,7 +58,7 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const sendCongratulationEmail = async (toEmail, userName) => {
     // ... (Email logic remains unchanged, kept for context) ...
-    const fromEmail = 'mcaigitalumni@gmail.com'; 
+    const fromEmail = 'mca@igitalumni.in'; 
     const subject = '🎉 Congratulations! Your Alumni Account is Verified!';
     const html = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">

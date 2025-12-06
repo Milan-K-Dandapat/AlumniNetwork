@@ -47,7 +47,7 @@ export const sendPaymentConfirmationEmail = async (details) => {
 
     const msg = {
         to: email, // The user's email
-        from: 'mcaigitalumni@gmail.com', // Your verified sender
+        from: 'mca@igitalumni.in', // Your verified sender
         subject: `✔ Registration Confirmed for ${eventTitle}!`,
         
         // Plain text version
@@ -119,7 +119,7 @@ export const sendPaymentConfirmationEmail = async (details) => {
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
                                         <img src="https.res.cloudinary.com/deyr9bouf/image/upload/v1762328359/pngwing.com_12_fgmbgm.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Have Questions?</h3>
-                                        <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">Contact us at<br><a href="mailto:mcaigitalumni@gmail.com" style="color: #3B82F6; text-decoration: none;">mcaigitalumni@gmail.com</a></p>
+                                        <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">Contact us at<br><a href="mailto:mca@igitalumni.in" style="color: #3B82F6; text-decoration: none;">mca@igitalumni.in</a></p>
                                     </td>
                                 </tr>
                             </table>
@@ -185,7 +185,7 @@ export const sendDonationEmail = async (details) => {
 
     const msg = {
         to: email,
-        from: 'mcaigitalumni@gmail.com',
+        from: 'mca@igitalumni.in',
         subject: 'Thank You for Your Generous Donation!',
 
         // Plain text version
@@ -298,7 +298,7 @@ export const sendFreeEventEmail = async (details) => {
 
     const msg = {
         to: email, // The user's email
-        from: 'mcaigitalumni@gmail.com', // Your verified sender
+        from: 'mca@igitalumni.in', // Your verified sender
         subject: `🎉 Congratulations! Your Spot is Confirmed for ${eventTitle}!`,
         
         // Plain text version
@@ -366,7 +366,7 @@ export const sendFreeEventEmail = async (details) => {
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
                                         <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762328359/pngwing.com_12_fgmbgm.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Have Questions?</h3>
-                                        <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">Contact us at<br><a href="mailto:mcaigitalumni@gmail.com" style="color: #3B82F6; text-decoration: none;">mcaigitalumni@gmail.com</a></p>
+                                        <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">Contact us at<br><a href="mailto:mca@igitalumni.in" style="color: #3B82F6; text-decoration: none;">mca@igitalumni.in</a></p>
                                     </td>
                                 </tr>
                             </table>

@@ -400,7 +400,7 @@ export const handleApproveAdmin = async (req, res) => {
 //         if (approvedUser.email) {
 //             const msg = {
 //                 to: approvedUser.email,
-//                 from: process.env.EMAIL_USER || 'igitmcaalumni@gmail.com', // Use sender from env or fallback
+//                 from: process.env.EMAIL_USER || 'mca@igitalumni.in', // Use sender from env or fallback
 //                 subject: '🎉 Congratulations! Your Alumni Network Account is Verified!',
 //                 html: `
 //                     <p>Hello ${approvedUser.fullName || 'Alumnus/Faculty'},</p>
