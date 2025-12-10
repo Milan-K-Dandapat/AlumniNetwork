@@ -1,28 +1,38 @@
 import nodemailer from 'nodemailer';
 
 /**
- * Nodemailer transporter using SMTP (e.g. SMTP2GO)
+ * Nodemailer transporter using SMTP2GO
  * Make sure these are set in your .env:
- * SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, EMAIL_FROM
+ * SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS
  */
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
+    host: process.env.SMTP_HOST || 'mail.smtp2go.com',
+    port: Number(process.env.SMTP_PORT) || 2525,
     secure:
         process.env.SMTP_SECURE === 'true' ||
-        Number(process.env.SMTP_PORT) === 465, // true for 465, false for 587/2525
+        Number(process.env.SMTP_PORT) === 465, // true only for 465
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
     },
 });
 
+// Extra logging to confirm config (without password)
+console.log('SMTP config in use:', {
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT),
+    secure:
+        process.env.SMTP_SECURE === 'true' ||
+        Number(process.env.SMTP_PORT) === 465,
+    user: process.env.SMTP_USER,
+});
+
 // Optional: verify connection on server start
 transporter.verify((err, success) => {
     if (err) {
-        console.error('SMTP Connection Error:', err.message); // updated log message
+        console.error('SMTP Connection Error (SMTP2GO):', err.message);
     } else {
-        console.log('SMTP Connected Successfully!'); // updated log message
+        console.log('SMTP Connection Success (SMTP2GO)!');
     }
 });
 
@@ -50,14 +60,14 @@ export const sendEmail = async ({ to, subject, html, text, attachments, from }) 
 const formatEventDate = (date) => {
     if (!date) return 'Date TBD';
     try {
-        const options = { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric', 
-            hour: 'numeric', 
-            minute: 'numeric', 
-            timeZone: 'Asia/Kolkata' // IMPORTANT: Set to your target timezone
+        const options = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            timeZone: 'Asia/Kolkata',
         };
         return new Date(date).toLocaleString('en-IN', options);
     } catch (e) {
@@ -71,18 +81,17 @@ const formatEventDate = (date) => {
  * @param {object} details - An object containing user and event details.
  */
 export const sendPaymentConfirmationEmail = async (details) => {
-    const { 
-        email, 
-        fullName, 
-        eventTitle, 
-        amount, 
-        eventDate, 
-        eventLocation, 
+    const {
+        email,
+        fullName,
+        eventTitle,
+        amount,
+        eventDate,
+        eventLocation,
         paymentId,
-        pdfAttachment // base64 PDF string
+        pdfAttachment, // base64 PDF string
     } = details;
 
-    // Format the date for display
     const formattedDate = formatEventDate(eventDate);
 
     const subject = `✔ Registration Confirmed for ${eventTitle}!`;
@@ -142,17 +151,17 @@ export const sendPaymentConfirmationEmail = async (details) => {
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f6f7f9; border-radius: 8px; padding: 20px 15px;">
                                 <tr>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
-                                        <img src="https.res.cloudinary.com/deyr9bouf/image/upload/v1762328020/pngwing.com_9_xjdggk.png" alt="Calendar" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762328020/pngwing.com_9_xjdggk.png" alt="Calendar" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">When</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">${formattedDate}</p>
                                     </td>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center; border-left: 1px solid #ddd; border-right: 1px solid #ddd;">
-                                        <img src="https.res.cloudinary.com/deyr9bouf/image/upload/v1762328170/pngwing.com_10_jzni2a.png" alt="Location" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762328170/pngwing.com_10_jzni2a.png" alt="Location" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Where</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">${eventLocation}</p>
                                     </td>
                                     <td width="33.33%" style="padding: 0 10px; vertical-align: top; text-align: center;">
-                                        <img src="https.res.cloudinary.com/deyr9bouf/image/upload/v1762328359/pngwing.com_12_fgmbgm.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
+                                        <img src="https://res.cloudinary.com/deyr9bouf/image/upload/v1762328359/pngwing.com_12_fgmbgm.png" alt="Contact" width="40" height="40" style="margin-bottom: 10px;">
                                         <h3 style="font-size: 14px; color: #111; margin: 0 0 5px 0;">Have Questions?</h3>
                                         <p style="font-size: 13px; color: #555; line-height: 1.5; margin: 0;">Contact us at<br><a href="mailto:mca@igitalumni.in" style="color: #3B82F6; text-decoration: none;">mca@igitalumni.in</a></p>
                                     </td>
@@ -200,7 +209,7 @@ export const sendPaymentConfirmationEmail = async (details) => {
         console.log(`Payment confirmation email sent to ${email} (with PDF)`);
     } catch (error) {
         console.error('Error sending payment confirmation email:', error);
-        throw error; 
+        throw error;
     }
 };
 
@@ -214,7 +223,7 @@ export const sendDonationEmail = async (details) => {
         fullName,
         amount,
         paymentId,
-        pdfAttachment
+        pdfAttachment,
     } = details;
 
     const subject = 'Thank You for Your Generous Donation!';
@@ -301,7 +310,7 @@ export const sendDonationEmail = async (details) => {
         console.log(`Donation confirmation email sent to ${email} (with PDF)`);
     } catch (error) {
         console.error('Error sending donation confirmation email:', error);
-        throw error; 
+        throw error;
     }
 };
 
@@ -312,17 +321,16 @@ export const sendDonationEmail = async (details) => {
  * @param {object} details - An object containing user and event details.
  */
 export const sendFreeEventEmail = async (details) => {
-    const { 
-        email, 
-        fullName, 
-        eventTitle, 
-        eventDate, 
-        eventLocation, 
+    const {
+        email,
+        fullName,
+        eventTitle,
+        eventDate,
+        eventLocation,
         receiptId, // We use receiptId instead of paymentId
-        pdfAttachment
+        pdfAttachment,
     } = details;
 
-    // Format the date for display
     const formattedDate = formatEventDate(eventDate);
 
     const subject = `🎉 Congratulations! Your Spot is Confirmed for ${eventTitle}!`;
@@ -433,6 +441,6 @@ export const sendFreeEventEmail = async (details) => {
         console.log(`Free event confirmation email sent to ${email} (with PDF)`);
     } catch (error) {
         console.error('Error sending free event email:', error);
-        throw error; 
+        throw error;
     }
 };
