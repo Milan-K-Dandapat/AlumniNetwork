@@ -3,8 +3,10 @@ import Teacher from '../models/Teacher.js';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import sgMail from '@sendgrid/mail'; // SendGrid client
 import mongoose from 'mongoose'; 
+
+// ✅ NEW: use your SMTP helper instead of SendGrid
+import { sendEmail } from '../utils/emailService.js';
 
 const OTP_EXPIRY_MINUTES = 10;
 // Fallback secret for safety if environment variable fails
@@ -13,7 +15,8 @@ const getSecret = () => process.env.JWT_SECRET || 'a8f5b1e3d7c2a4b6e8d9f0a1b3c5d
 // Consistent Super Admin Email check
 const getSuperAdminEmail = () => process.env.SUPER_ADMIN_EMAIL || process.env.REACT_APP_SUPER_ADMIN_EMAIL || 'milankumar7770@gmail.com';
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// ❌ REMOVED: SendGrid setup
+// sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Default password for promoted admins
 const DEFAULT_ADMIN_PASSWORD = 'igit@mca';
@@ -40,20 +43,17 @@ const findUserByIdAndUpdate = async (id, update, options = {}) => {
     return user;
 };
 
-// ✅ FIX 1: Hardcoded verified sender and removed try-catch so errors bubble up
+// ✅ Uses SMTP (sendEmail) instead of SendGrid
+// ✅ Name / subject / HTML behavior same as before (just different transport)
 const sendVerificationEmail = async (toEmail, otp, subject) => {
-    const msg = {
-        // We use the object format to set a professional "Name"
-        from: {
-            email: 'mca@igitalumni.in', // Your VERIFIED Domain Email
-            name: 'IGIT MCA Alumni'      // The Name users see in Inbox
-        }, 
+    const html = `<p>Your OTP is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`;
+
+    await sendEmail({
         to: toEmail,
-        subject: subject,
-        html: `<p>Your OTP is: <strong>${otp}</strong>. It is valid for ${OTP_EXPIRY_MINUTES} minutes.</p>`,
-    };
-    // logic: If this fails, it throws an error to the parent function so the frontend knows it failed
-    await sgMail.send(msg);
+        subject,
+        html,
+        // "from" is taken from EMAIL_FROM / SMTP_USER in emailService.js
+    });
 };
 
 const getHighestNumericalID = async () => {
@@ -103,7 +103,7 @@ export const sendOtp = async (req, res) => {
         await sendVerificationEmail(email, otp, 'Your AlumniConnect Verification Code');
         res.status(200).json({ message: 'OTP sent successfully to your email.' });
     } catch (error) {
-        console.error('Error sending email (SendGrid API Failed):', error);
+        console.error('Error sending email:', error);
         res.status(500).json({ message: 'Server error. Could not send OTP.' });
     }
 };
@@ -209,7 +209,7 @@ export const loginOtpSendTeacher = async (req, res) => {
         const user = await Teacher.findOne({ email: identifier });
         if (!user) { return res.status(404).json({ message: 'Faculty user not found.' }); }
         if (!user.isVerified) { return res.status(403).json({ message: `Access Denied: Your account is pending admin verification. \nOnce verified, we will send a separate welcome email to ${user.email}.`, isVerified: false }); }
-      const otp = crypto.randomInt(100000, 999999).toString();
+        const otp = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
         await Teacher.findOneAndUpdate({ email: identifier }, { $set: { otp, otpExpires } }, { new: true });
         await sendVerificationEmail(user.email, otp, 'Your Faculty Login Code');

@@ -1,9 +1,5 @@
 import Alumni from '../models/Alumni.js';
-import sgMail from '@sendgrid/mail'; // <-- IMPORT SENDGRID
-
-// --- SET YOUR API KEY ---
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-// --------------------------
+import { sendEmail } from '../utils/emailService.js'; // <-- REPLACE SendGrid with our SMTP helper
 
 /**
  * @desc    Get all alumni profiles
@@ -47,21 +43,12 @@ export const verifyAlumni = async (req, res) => {
         const updatedAlumni = await alumni.save();
         
         
-        // --- 📧 START MERGED SENDGRID LOGIC ---
+        // --- 📧 START EMAIL LOGIC (SMTP via Zoho) ---
         if (updatedAlumni.email) {
-            const msg = {
-                to: updatedAlumni.email,
-                
-                // ✅ YOUR LOGIC: Using your 'from' address logic
-                from: process.env.EMAIL_USER || 'mca@igitalumni.in', 
-                
-                // ✅ YOUR LOGIC: Using your requested emojis
-                subject: '🎉Congratulations! Your Alumni Account is Verified!',
-                
-                // ✅ MY DESIGN: The full animated email template
-               html: `
+            const subject = '🎉Congratulations! Your Alumni Account is Verified!';
+
+            const html = `
 <style>
-    /* ... (all the CSS animation styles) ... */
     @keyframes draw-circle {
         from { stroke-dashoffset: 315; }
         to { stroke-dashoffset: 0; }
@@ -121,18 +108,26 @@ export const verifyAlumni = async (req, res) => {
         <p style="margin: 0;">Best regards,<br>The IGIT MCA Alumni Network Team</p>
     </div>
 </div>
-`
-            };
+`;
+
             try {
-                await sgMail.send(msg);
+                await sendEmail({
+                    to: updatedAlumni.email,
+                    subject,
+                    html,
+                    // from is handled in emailService.js using EMAIL_FROM / SMTP_USER
+                });
                 console.log(`Verification email sent successfully to ${updatedAlumni.email}`);
             } catch (emailError) {
-                console.error(`Failed to send verification email to ${updatedAlumni.email}:`, emailError.response?.body || emailError.message);
+                console.error(
+                    `Failed to send verification email to ${updatedAlumni.email}:`,
+                    emailError.message
+                );
             }
         } else {
             console.warn(`User ${updatedAlumni._id} approved but has no email address. Cannot send verification email.`);
         }
-        // --- 📧 END MERGED SENDGRID LOGIC ---
+        // --- 📧 END EMAIL LOGIC ---
 
         
         // 2. SEND SUCCESS RESPONSE TO ADMIN

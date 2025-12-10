@@ -1,7 +1,47 @@
-import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 
-// Set the API key from your .env file
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+/**
+ * Nodemailer transporter using Zoho SMTP
+ * Make sure these are set in your .env:
+ * SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS
+ */
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure:
+        process.env.SMTP_SECURE === 'true' ||
+        Number(process.env.SMTP_PORT) === 465, // true for 465, false for 587
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+    },
+});
+
+// Optional: verify connection on server start
+transporter.verify((err, success) => {
+    if (err) {
+        console.error('Zoho SMTP Connection Error:', err.message);
+    } else {
+        console.log('Zoho SMTP Connected Successfully!');
+    }
+});
+
+/**
+ * Generic helper to send any email
+ * Used by other controllers (alumni/teacher/admin/etc.)
+ */
+export const sendEmail = async ({ to, subject, html, text, attachments, from }) => {
+    const mailOptions = {
+        from: from || process.env.EMAIL_FROM || 'MCA Alumni <mca@igitalumni.in>',
+        to,
+        subject,
+        text,
+        html,
+        attachments,
+    };
+
+    return transporter.sendMail(mailOptions);
+};
 
 /**
  * Helper function to format the event date.
@@ -39,22 +79,17 @@ export const sendPaymentConfirmationEmail = async (details) => {
         eventDate, 
         eventLocation, 
         paymentId,
-        pdfAttachment // 🚀 --- Accepts the PDF data --- 🚀
+        pdfAttachment // base64 PDF string
     } = details;
 
     // Format the date for display
     const formattedDate = formatEventDate(eventDate);
 
-    const msg = {
-        to: email, // The user's email
-        from: 'mca@igitalumni.in', // Your verified sender
-        subject: `✔ Registration Confirmed for ${eventTitle}!`,
-        
-        // Plain text version
-        text: `Hi ${fullName},\n\nRegistration Confirmed!\n\nThank you for registering. Your payment of ₹${amount} was successful and your spot for ${eventTitle} is secured.\n\nRECEIPT:\n- Registrant: ${fullName}\n- Event: ${eventTitle}\n- Amount Paid: ₹${amount}\n- Payment ID: ${paymentId}\n\nEVENT INFO:\n- When: ${formattedDate}\n- Where: ${eventLocation}\n\nWe look forward to seeing you there!\nBest,\nThe Alumni Network Team`,
-        
-        // 🚀 --- NEW PAYTM-INSPIRED HTML TEMPLATE --- 🚀
-        html: `
+    const subject = `✔ Registration Confirmed for ${eventTitle}!`;
+
+    const text = `Hi ${fullName},\n\nRegistration Confirmed!\n\nThank you for registering. Your payment of ₹${amount} was successful and your spot for ${eventTitle} is secured.\n\nRECEIPT:\n- Registrant: ${fullName}\n- Event: ${eventTitle}\n- Amount Paid: ₹${amount}\n- Payment ID: ${paymentId}\n\nEVENT INFO:\n- When: ${formattedDate}\n- Where: ${eventLocation}\n\nWe look forward to seeing you there!\nBest,\nThe Alumni Network Team`;
+
+    const html = `
 <body style="margin: 0; padding: 0; background-color: #f6f7f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
         <tr>
@@ -142,30 +177,29 @@ export const sendPaymentConfirmationEmail = async (details) => {
         </tr>
     </table>
 </body>
-        `,
+        `;
 
-        // 🚀 --- THIS IS THE PDF ATTACHMENT --- 🚀
-        attachments: [
-            {
-                content: pdfAttachment, // The base64 string
-                filename: `receipt-${paymentId || 'event'}.pdf`,
-                type: 'application/pdf',
-                disposition: 'attachment',
-                contentId: 'receipt'
-            }
-        ]
-        // 🚀 --- END OF ATTACHMENT BLOCK --- 🚀
-    };
+    const attachments = [
+        {
+            content: pdfAttachment, // base64 string
+            filename: `receipt-${paymentId || 'event'}.pdf`,
+            contentType: 'application/pdf',
+            encoding: 'base64',
+        },
+    ];
 
     try {
-        await sgMail.send(msg);
+        await sendEmail({
+            to: email,
+            subject,
+            text,
+            html,
+            attachments,
+            from: 'MCA Alumni <mca@igitalumni.in>',
+        });
         console.log(`Payment confirmation email sent to ${email} (with PDF)`);
     } catch (error) {
         console.error('Error sending payment confirmation email:', error);
-        if (error.response) {
-            console.error(error.response.body);
-        }
-        // We throw the error so the calling function can catch it if needed
         throw error; 
     }
 };
@@ -183,16 +217,10 @@ export const sendDonationEmail = async (details) => {
         pdfAttachment
     } = details;
 
-    const msg = {
-        to: email,
-        from: 'mca@igitalumni.in',
-        subject: 'Thank You for Your Generous Donation!',
+    const subject = 'Thank You for Your Generous Donation!';
+    const text = `Hi ${fullName},\n\nThank you for your generous donation of ₹${amount} to the Alumni Network. Your contribution is invaluable.\n\nYour receipt is attached.\n\nPayment ID: ${paymentId}\n\nBest regards,\nThe Alumni Network Team`;
 
-        // Plain text version
-        text: `Hi ${fullName},\n\nThank you for your generous donation of ₹${amount} to the Alumni Network. Your contribution is invaluable.\n\nYour receipt is attached.\n\nPayment ID: ${paymentId}\n\nBest regards,\nThe Alumni Network Team`,
-
-        // HTML version
-        html: `
+    const html = `
 <body style="margin: 0; padding: 0; background-color: #f6f7f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
         <tr>
@@ -222,7 +250,7 @@ export const sendDonationEmail = async (details) => {
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px;">
                                 <tr>
                                     <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Donor</td>
-                                    <td align="right" style="padding: 15px 20px; color: #111111; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${fullName}</td>
+                                    <td align="right" style="padding: 15px 20px; color: ${'#111111'}; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${fullName}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Payment ID</td>
@@ -250,28 +278,29 @@ export const sendDonationEmail = async (details) => {
         </tr>
     </table>
 </body>
-        `,
+        `;
 
-        // ATTACHMENT
-        attachments: [
-            {
-                content: pdfAttachment,
-                filename: `donation-receipt-${paymentId}.pdf`,
-                type: 'application/pdf',
-                disposition: 'attachment',
-                contentId: 'receipt'
-            }
-        ]
-    };
+    const attachments = [
+        {
+            content: pdfAttachment,
+            filename: `donation-receipt-${paymentId}.pdf`,
+            contentType: 'application/pdf',
+            encoding: 'base64',
+        },
+    ];
 
     try {
-        await sgMail.send(msg);
+        await sendEmail({
+            to: email,
+            subject,
+            text,
+            html,
+            attachments,
+            from: 'MCA Alumni <mca@igitalumni.in>',
+        });
         console.log(`Donation confirmation email sent to ${email} (with PDF)`);
     } catch (error) {
         console.error('Error sending donation confirmation email:', error);
-        if (error.response) {
-            console.error(error.response.body);
-        }
         throw error; 
     }
 };
@@ -296,16 +325,10 @@ export const sendFreeEventEmail = async (details) => {
     // Format the date for display
     const formattedDate = formatEventDate(eventDate);
 
-    const msg = {
-        to: email, // The user's email
-        from: 'mca@igitalumni.in', // Your verified sender
-        subject: `🎉 Congratulations! Your Spot is Confirmed for ${eventTitle}!`,
-        
-        // Plain text version
-        text: `Hi ${fullName},\n\nCongratulations! Your spot is confirmed for ${eventTitle}.\n\nThis is a free event, and we're excited to have you join us. Your confirmation is attached.\n\nEVENT INFO:\n- When: ${formattedDate}\n- Where: ${eventLocation}\n\nWe look forward to seeing you there!\nBest,\nThe Alumni Network Team`,
-        
-        // HTML Template
-        html: `
+    const subject = `🎉 Congratulations! Your Spot is Confirmed for ${eventTitle}!`;
+    const text = `Hi ${fullName},\n\nCongratulations! Your spot is confirmed for ${eventTitle}.\n\nThis is a free event, and we're excited to have you join us. Your confirmation is attached.\n\nEVENT INFO:\n- When: ${formattedDate}\n- Where: ${eventLocation}\n\nWe look forward to seeing you there!\nBest,\nThe Alumni Network Team`;
+
+    const html = `
 <body style="margin: 0; padding: 0; background-color: #f6f7f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
         <tr>
@@ -387,28 +410,29 @@ export const sendFreeEventEmail = async (details) => {
         </tr>
     </table>
 </body>
-        `,
+        `;
 
-        // ATTACHMENT
-        attachments: [
-            {
-                content: pdfAttachment,
-                filename: `confirmation-${receiptId}.pdf`,
-                type: 'application/pdf',
-                disposition: 'attachment',
-                contentId: 'receipt'
-            }
-        ]
-    };
+    const attachments = [
+        {
+            content: pdfAttachment,
+            filename: `confirmation-${receiptId}.pdf`,
+            contentType: 'application/pdf',
+            encoding: 'base64',
+        },
+    ];
 
     try {
-        await sgMail.send(msg);
+        await sendEmail({
+            to: email,
+            subject,
+            text,
+            html,
+            attachments,
+            from: 'MCA Alumni <mca@igitalumni.in>',
+        });
         console.log(`Free event confirmation email sent to ${email} (with PDF)`);
     } catch (error) {
         console.error('Error sending free event email:', error);
-        if (error.response) {
-            console.error(error.response.body);
-        }
         throw error; 
     }
 };
