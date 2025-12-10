@@ -1,16 +1,16 @@
 import nodemailer from 'nodemailer';
 
 /**
- * Nodemailer transporter using Zoho SMTP
+ * Nodemailer transporter using SMTP (e.g. SMTP2GO)
  * Make sure these are set in your .env:
- * SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS
+ * SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, EMAIL_FROM
  */
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT) || 587,
     secure:
         process.env.SMTP_SECURE === 'true' ||
-        Number(process.env.SMTP_PORT) === 465, // true for 465, false for 587
+        Number(process.env.SMTP_PORT) === 465, // true for 465, false for 587/2525
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
@@ -20,9 +20,9 @@ const transporter = nodemailer.createTransport({
 // Optional: verify connection on server start
 transporter.verify((err, success) => {
     if (err) {
-        console.error('Zoho SMTP Connection Error:', err.message);
+        console.error('SMTP Connection Error:', err.message); // updated log message
     } else {
-        console.log('Zoho SMTP Connected Successfully!');
+        console.log('SMTP Connected Successfully!'); // updated log message
     }
 });
 
@@ -250,7 +250,7 @@ export const sendDonationEmail = async (details) => {
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px;">
                                 <tr>
                                     <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Donor</td>
-                                    <td align="right" style="padding: 15px 20px; color: ${'#111111'}; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${fullName}</td>
+                                    <td align="right" style="padding: 15px 20px; color: #111111; font-size: 15px; font-weight: 500; border-bottom: 1px solid #e0e0e0;">${fullName}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 15px 20px; color: #666666; font-size: 15px; border-bottom: 1px solid #e0e0e0;">Payment ID</td>

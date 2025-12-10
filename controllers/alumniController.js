@@ -1,5 +1,5 @@
 import Alumni from '../models/Alumni.js';
-import { sendEmail } from '../utils/emailService.js'; // <-- REPLACE SendGrid with our SMTP helper
+import { sendEmail } from '../utils/emailService.js'; // uses our SMTP (SMTP2GO) helper
 
 /**
  * @desc    Get all alumni profiles
@@ -7,7 +7,6 @@ import { sendEmail } from '../utils/emailService.js'; // <-- REPLACE SendGrid wi
  * @access  Private (Requires auth)
  */
 export const getAlumni = async (req, res) => {
-    // ... (Your getAlumni logic is unchanged) ...
     try {
         const alumni = await Alumni.find({}).sort({ createdAt: -1 });
         res.status(200).json(alumni);
@@ -43,7 +42,7 @@ export const verifyAlumni = async (req, res) => {
         const updatedAlumni = await alumni.save();
         
         
-        // --- 📧 START EMAIL LOGIC (SMTP via Zoho) ---
+        // --- 📧 START EMAIL LOGIC (SMTP via emailService) ---
         if (updatedAlumni.email) {
             const subject = '🎉Congratulations! Your Alumni Account is Verified!';
 
@@ -129,7 +128,6 @@ export const verifyAlumni = async (req, res) => {
         }
         // --- 📧 END EMAIL LOGIC ---
 
-        
         // 2. SEND SUCCESS RESPONSE TO ADMIN
         res.status(200).json(updatedAlumni);
 
@@ -146,7 +144,6 @@ export const verifyAlumni = async (req, res) => {
  * @access  Private (Admin / SuperAdmin)
  */
 export const deleteAlumni = async (req, res) => {
-    // ... (Your delete logic is unchanged) ...
     try {
         const alumni = await Alumni.findById(req.params.id);
 
