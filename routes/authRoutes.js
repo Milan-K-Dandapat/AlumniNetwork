@@ -6,8 +6,6 @@ import {
     login,
     forgotPassword,
     resetPassword,
-    loginOtpSend,
-    loginOtpVerify,
 
     // TEACHER REGISTRATION CONTROLLERS
     sendOtpTeacher,
@@ -44,8 +42,8 @@ router.post('/reset-password', resetPassword);
 // ----------------------------------------
 
 // --- Student / Alumni Login ---
-router.post('/login-otp-send', loginOtpSend);
-router.post('/login-otp-verify', loginOtpVerify);
+
+
 
 // --- ✅ FIX: Add Teacher / Faculty Specific Login Routes ---
 router.post('/login-otp-send-teacher', loginOtpSendTeacher);
