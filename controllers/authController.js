@@ -346,26 +346,6 @@ export const loginOtpVerifyTeacher = async (req, res) => {
     }
 };
 
-export const login = async (req, res) => {
-    const { email, password } = req.body;
-    try {
-        const user = await Alumni.findOne({ email }).select('+password');
-        if (!user || !user.password) { return res.status(400).json({ message: 'Invalid credentials.' }); }
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) { return res.status(400).json({ message: 'Invalid credentials.' }); }
-        if (!user.isVerified) { return res.status(403).json({ message: 'Access Denied. Your account is pending admin verification.', isVerified: false }); }
-        
-        // ⭐ THIS IS CORRECT (No change needed)
-        const payload = { _id: user._id, email: user.email, role: user.role }; 
-      
-        const token = jwt.sign(payload, getSecret(), { expiresIn: '7d' });
-        res.status(200).json({ message: 'Login successful.', token, user: { id: user._id, email: user.email, fullName: user.fullName, alumniCode: user.alumniCode, role: user.role } });
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: 'Server error.' });
-  }
-};
-
 
 // =========================================================================
 // 3. ADMIN PANEL AUTHENTICATION HANDLERS
