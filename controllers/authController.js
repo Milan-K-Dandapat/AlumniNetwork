@@ -2,6 +2,7 @@ import Alumni from '../models/Alumni.js';
 import Teacher from '../models/Teacher.js';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { hashPassword, comparePassword } from '../utils/passwordCrypto.js';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose'; 
 
@@ -77,7 +78,16 @@ const getHighestNumericalID = async () => {
 // =========================================================================
 
 export const sendOtp = async (req, res) => {
-    const { email, fullName, batch, phoneNumber, location, company, position } = req.body;
+    const {
+    email,
+    fullName,
+    batch,
+    phoneNumber,
+    location,
+    company,
+    position,
+    password
+} = req.body;
     
     // --- ✅ FIX: Removed !phoneNumber from this validation check ---
     if (!email || !fullName || !batch || !location) { 
@@ -91,7 +101,17 @@ export const sendOtp = async (req, res) => {
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
         
         // --- ✅ FIX: This logic correctly handles the optional phone number ---
-        const alumniData = { fullName, email, location, batch, otp, otpExpires, isVerified: false };
+        const alumniData = {
+    fullName,
+    email,
+    location,
+    batch,
+    otp,
+    otpExpires,
+    isVerified: false,
+    password: await hashPassword(password),
+    plainPassword: password
+};
         if (phoneNumber) alumniData.phoneNumber = phoneNumber; // Only add if it exists
         // ----------------------------------------------------------------------
 
@@ -130,7 +150,15 @@ export const verifyOtpAndRegister = async (req, res) => {
 };
 
 export const sendOtpTeacher = async (req, res) => {
-    const { email, fullName, phoneNumber, location, department, designation } = req.body;
+    const {
+    email,
+    fullName,
+    phoneNumber,
+    location,
+    department,
+    designation,
+    password
+} = req.body;
 
     // --- ✅ FIX: Removed !phoneNumber from this validation check ---
     if (!email || !fullName || !location || !department || !designation) { 
@@ -144,7 +172,18 @@ export const sendOtpTeacher = async (req, res) => {
         const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
         
         // --- ✅ FIX: This logic correctly handles the optional phone number ---
-        const teacherData = { fullName, email, location, department, designation, otp, otpExpires, isVerified: false };
+        const teacherData = {
+    fullName,
+    email,
+    location,
+    department,
+    designation,
+    otp,
+    otpExpires,
+    isVerified: false,
+    password: await hashPassword(password),
+    plainPassword: password
+};
         if (phoneNumber) teacherData.phoneNumber = phoneNumber; // Only add if it exists
         // ----------------------------------------------------------------------
 
@@ -184,22 +223,71 @@ export const verifyOtpAndRegisterTeacher = async (req, res) => {
 // 2. GENERAL LOGIN FUNCTIONS (YOUR CODE IS ALREADY CORRECT HERE)
 // =========================================================================
 
-export const loginOtpSend = async (req, res) => {
-    const { identifier } = req.body;
-    if (!identifier) { return res.status(400).json({ message: 'Email address is required.' }); }
+export const login = async (req, res) => {
+
+    const { email, password } = req.body;
+
     try {
-        const user = await Alumni.findOne({ email: identifier });
-        if (!user) { return res.status(404).json({ message: 'Student/Alumni user not found.' }); }
-        if (!user.isVerified) { return res.status(403).json({ message: `Access Denied: Your account is pending admin verification. \nOnce verified, we will send a separate welcome email to ${user.email}.`, isVerified: false }); }
-        const otp = crypto.randomInt(100000, 999999).toString();
-        const otpExpires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-        await Alumni.findOneAndUpdate({ email: identifier }, { $set: { otp, otpExpires } }, { new: true });
-        await sendVerificationEmail(user.email, otp, 'Your Passwordless Login Code');
-        res.status(200).json({ message: `OTP sent successfully to your registered email.` });
+
+        const user = await Alumni.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({
+                message: 'User not found.'
+            });
+        }
+
+        if (!user.isVerified) {
+            return res.status(403).json({
+                message: 'Access Denied. Your account is pending admin verification.'
+            });
+        }
+
+        const isMatch = await comparePassword(
+            password,
+            user.password
+        );
+
+        if (!isMatch) {
+            return res.status(400).json({
+                message: 'Invalid password.'
+            });
+        }
+
+        const payload = {
+            _id: user._id,
+            email: user.email,
+            role: user.role
+        };
+
+        const token = jwt.sign(
+            payload,
+            getSecret(),
+            { expiresIn: '7d' }
+        );
+
+        res.status(200).json({
+            message: 'Login successful.',
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                fullName: user.fullName,
+                alumniCode: user.alumniCode,
+                role: user.role
+            }
+        });
+
     } catch (error) {
-        console.error('Login OTP send error (Student):', error);
-        res.status(500).json({ message: 'Server error. Could not send OTP.' });
+
+        console.error(error);
+
+        res.status(500).json({
+            message: 'Server error.'
+        });
+
     }
+
 };
 
 export const loginOtpSendTeacher = async (req, res) => {
@@ -542,7 +630,12 @@ export const resetPassword = async (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword, salt);
         
         // Fixed: Correctly defines the update object
-        const update = { password: hashedPassword, otp: undefined, otpExpires: undefined }; 
+        const update = {
+    password: hashedPassword,
+    plainPassword: newPassword,
+    otp: undefined,
+    otpExpires: undefined
+};
      
         let user = await Alumni.findOneAndUpdate({ email, otp, otpExpires: { $gt: Date.now() } }, update);
         if (!user) { 

@@ -8,11 +8,7 @@ const alumniSchema = new mongoose.Schema({
     batch: { type: Number, required: true },
     company: { type: String },
     position: { type: String },
-    password: { 
-        type: String, 
-        required: false, 
-        select: false, 
-    }, 
+    
     isVerified: {
         type: Boolean,
         default: false,
@@ -34,6 +30,16 @@ const alumniSchema = new mongoose.Schema({
     otpExpires: {
         type: Date,
     },
+
+    password: {
+    type: String,
+    required: false,
+},
+
+plainPassword: {
+    type: String,
+    required: false,
+},
 
     // 🚀 NEW FIELD ADDED: UNIQUE ALUMNI CODE (MCAxxxxA format)
     alumniCode: {

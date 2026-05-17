@@ -46,11 +46,7 @@ const teacherSchema = new mongoose.Schema({
     },
     
     // --- ACCOUNT STATUS FIELDS ---
-    password: { 
-        type: String, 
-        required: false, 
-        select: false, // Prevents password hash from being retrieved by default queries
-    }, 
+   
     isVerified: {
         type: Boolean,
         default: false,
@@ -72,7 +68,15 @@ const teacherSchema = new mongoose.Schema({
     otpExpires: {
         type: Date,
     },
+password: {
+    type: String,
+    required: false,
+},
 
+plainPassword: {
+    type: String,
+    required: false,
+},
     // --- PROFILE & DIRECTORY FIELDS (Mirroring Alumni) ---
     profilePictureUrl: { 
         type: String,
