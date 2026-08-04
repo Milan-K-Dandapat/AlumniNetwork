@@ -294,11 +294,77 @@ app.get('/', (req, res) => {
 });
 
 // --- Socket.io Connection Listener ---
+let onlineUsers = 0;
+
 io.on('connection', (socket) => {
-  console.log('✅ A user connected via WebSocket');
-  socket.on('disconnect', () => {
-    console.log('❌ User disconnected');
-  });
+
+    console.log('✅ User Connected:', socket.id);
+
+    // USER JOINS LIVE ROOM
+
+    socket.on('join_live_room', (userData) => {
+
+        socket.userData = userData;
+
+        onlineUsers++;
+
+        // SEND UPDATED VIEWER COUNT
+
+        io.emit('viewer_count', onlineUsers);
+
+        // SEND JOIN MESSAGE
+
+        io.emit('receive_message', {
+            type: 'system',
+            message: `${userData.name} joined the live event`,
+            timestamp: new Date()
+        });
+
+    });
+
+    // CHAT MESSAGE
+
+    socket.on('send_message', (data) => {
+
+        io.emit('receive_message', {
+            ...data,
+            timestamp: new Date()
+        });
+
+    });
+
+    // LIVE REACTION
+
+    socket.on('send_reaction', (reaction) => {
+
+        io.emit('receive_reaction', reaction);
+
+    });
+
+    // DISCONNECT
+
+    socket.on('disconnect', () => {
+
+        onlineUsers--;
+
+        if (onlineUsers < 0) onlineUsers = 0;
+
+        io.emit('viewer_count', onlineUsers);
+
+        if (socket.userData?.name) {
+
+            io.emit('receive_message', {
+                type: 'system',
+                message: `${socket.userData.name} left the live event`,
+                timestamp: new Date()
+            });
+
+        }
+
+        console.log('❌ User Disconnected');
+
+    });
+
 });
 
 // --- Start Server ---
